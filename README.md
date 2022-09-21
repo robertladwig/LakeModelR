@@ -31,6 +31,11 @@ To test the model code run either example.R or
 ## CLEAN WORKSPACE
 rm(list = ls())
 
+## INSTALL PACKAGE
+# install.packages("remotes")
+# require(remotes)
+# remotes::install_github("robertladwig/LakeModelR")
+
 ## LOAD PACKAGE(S)
 library(LakeModelR)
 require(tidyverse)
