@@ -20,7 +20,8 @@ dx = zmax/nx # spatial step
 ## HYPSOGRAPHY OF THE LAKE
 hyps_all <- get_hypsography(hypsofile = system.file('extdata', 'bathymetry.csv',
                             package = 'LakeModelR'),
-                            dx = dx, nx = nx)
+                            dx = dx,
+                            nx = nx)
 
 ## ATMOSPHERIC BOUNDARY CONDITIONS
 meteo_all <- provide_meteorology(meteofile = system.file('extdata', 'meteorology.csv',
