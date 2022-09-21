@@ -19,7 +19,7 @@ remotes::install_github("robertladwig/LakeModelR")
 
 Click [here](https://github.com/robertladwig/LakeModeling/blob/main/Manual/1D_IntegralEnergy.pdf) for an overview of the model algorithm.
 
-To test the script run either example.R or
+To test the model code run either example.R or
 
 ```{r gh-run, eval = FALSE}
 #' Example workflow to run the 1D integral energy model
