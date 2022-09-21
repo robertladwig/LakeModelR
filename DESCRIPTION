@@ -14,7 +14,7 @@ Imports:
     gotmtools,
     zoo,
     dplur,
-    lubridate
+    lubridate,
     reshape2
 Suggests:
     rLakeAnalyzer
