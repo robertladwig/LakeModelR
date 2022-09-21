@@ -1,5 +1,5 @@
 # LakeModelR
-<a href="url"><img src="Figs/mendota.gif" align="right" height="220" width="220" ></a>
+<a href="url"><img src="inst/extdata/lakemodelr.png" align="right" height="220" width="220" ></a>
 
 -----
 
