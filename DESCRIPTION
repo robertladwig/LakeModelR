@@ -11,7 +11,6 @@ Description: modularized 1D vertical integral energy model
 Depends:
     R (>= 3.5)
 Imports:
-    gotmtools,
     zoo,
     dplyr,
     lubridate,
