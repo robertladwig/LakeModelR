@@ -3,7 +3,7 @@
 
 -----
 
-:busts_in_silhouette: Robert Ladwig  
+:busts_in_silhouette: Robert Ladwig, Cal Buelo, Ellen Albright, Paul Hanson
 :email: [contact](mailto:ladwigjena@gmail.com)
 :computer: [more info](https://robertladwig.github.io)
 

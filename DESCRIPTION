@@ -2,7 +2,10 @@ Package: LakeModelR
 Type: Package
 Title: What the Package Does (Title Case)
 Version: 0.1.0
-Author: Robert Ladwig
+Author: Authors@R: c(person("Robert", "Ladwig", role = c("aut","cre")),
+    person("Cal", "Buelo", role = "aut"),
+    person("Ellen", "Albright", role = "aut"),
+    person("Paul", "Hanson", role = "aut"))
 Maintainer: Robert Ladwig <ladwigjena@gmail.com>
 Description: modularized 1D vertical integral energy model.
 License: GPL-3.0 license
