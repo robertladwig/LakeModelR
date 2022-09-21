@@ -8,6 +8,16 @@ Author: Authors@R: c(person("Robert", "Ladwig", role = c("aut","cre")),
     person("Paul", "Hanson", role = "aut"))
 Maintainer: Robert Ladwig <ladwigjena@gmail.com>
 Description: modularized 1D vertical integral energy model
+Depends:
+    R (>= 3.5)
+Imports:
+    gotmtools,
+    zoo,
+    dplur,
+    lubridate
+    reshape2
+Suggests:
+    rLakeAnalyzer
 License: GPL-3.0 license
 Encoding: UTF-8
 LazyData: true
