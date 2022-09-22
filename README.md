@@ -9,15 +9,15 @@
 
 -----
 
-R package to run a modularized 1D integral energy model for water temperature dynamics in a lake. The package can be installed through
+LakeModelR is a R package to run a modularized 1D integral energy model for water temperature dynamics in a lake. The mixing algorithms are based on the MINLAKE (Ford and Stefan 1980, Riley and Stefan 1988, Herb and Stefan 2004) and the MyLake (Saloranta and Andersen 2007) models. Implementations to estimate the incoming and outgoing long-wave heat fluxes were taken from Livingstone and Imboden (1989) and Goudsmit et al. (2002). The latent and sensible heat fluxes were calculated taking into account atmospheric stability using the algorithms by Verburg and Antenucci (2010). The ice algorithms from MyLake (Saloranta and Andersen 2007) were applied to simulate ice formation and melting. Click [here](https://github.com/robertladwig/LakeModeling/blob/main/Manual/1D_IntegralEnergy.pdf) for an overview of the model algorithm.
+
+The package can be installed through
 
 ```{r gh-installation, eval = FALSE}
 #install.packages("remotes")
 require(remotes)
 remotes::install_github("robertladwig/LakeModelR")
 ```
-
-Click [here](https://github.com/robertladwig/LakeModeling/blob/main/Manual/1D_IntegralEnergy.pdf) for an overview of the model algorithm.
 
 To test the model code run either example.R or
 
@@ -139,3 +139,19 @@ ggplot(m.df, aes((time), dx*as.numeric(as.character(variable)))) +
   scale_y_reverse()
 
 ```
+
+References:
+
+Ford, D.E., and H.G. Stefan. 1980. Thermal predictions using an integral energy model. J. Hydraul. Div. ASCE 106(1). 39-55
+
+Goudsmit, G.H., H. Burchard, F. Peeters, and A. Wüst. 2002. Application of k-e turbulence models to enclosed basins: The role of internal seiches. Journal of Geophysical Research 107. C12. 3230. doi:10.1029/2001JC000954
+
+Herb, W.R., and H.G. Stefan. 2004. Temperature Stratification and Mixing Dynamics in a Shallow Lake With Submersed Macrophytes. Lake and Reservoir Management 20. 4. 296-308. doi:10.1080/07438140409354159
+
+Livingstone, D., and D. Imboden. 1989. Annual heat balance and equilibrium temperature of Lake Aegeri, Switzerland. Aquat. Sci. 51
+
+Riley, M., and H.G. Stefan. 1988. MINLAKE: A dynamic lake water quality simulation model. Ecol. Model. 43. 155-182
+
+Saloranta, T.M., and T. Andersen. 2007. MyLake – A multi-year lake simulation model code suitable for uncertainty and sensitivity analysis simulation. Ecol. Model. 207. 1. 45-60. doi:https://doi.org/10.1016/j.ecolmodel.2007.03.018
+
+Verburg, P., and J.P. Antenucci. 2010. Persistent unstable atmospheric boundary layer enhances sensible and latent heat loss in a tropical great lake: Lake Tanganyika. Journal of Geophysical Research Atmospheres 115. D11. doi:https://doi.org/10.1029/2009JD012839
