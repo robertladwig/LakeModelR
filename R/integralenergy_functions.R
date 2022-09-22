@@ -31,7 +31,7 @@ eddy_diffusivity <-function(rho, depth, g, rho_0, ice, area){
 
 provide_meteorology <- function(meteofile, secchifile = NULL,
                                 windfactor = 1.0){
-  meteo <- read_csv(meteofile)
+  meteo <- read_csv(meteofile, show_col_types = FALSE)
 
   daily_meteo <- meteo
   daily_meteo$date = daily_meteo$datetime
@@ -63,7 +63,7 @@ provide_meteorology <- function(meteofile, secchifile = NULL,
   # Package ID: knb-lter-ntl.31.30 Cataloging System:https://pasta.edirepository.org.
   # Data set title: North Temperate Lakes LTER: Secchi Disk Depth; Other Auxiliary Base Crew Sample Data 1981 - current.
   if (!is.null(secchifile)){
-    secview <- read_csv(secchifile) %>%
+    secview <- read_csv(secchifile,show_col_types = FALSE) %>%
       dplyr::filter(sampledate >= startDate)
     if (secview$sampledate[1] >= startDate){
       secview <- rbind(data.frame('sampledate' = startDate,
@@ -143,7 +143,7 @@ calc_cc <- function(date, airt, relh = NULL, dewt = NULL, swr, lat, lon, elev, d
 
   Ho = Hsc/(r^2)*(sin(theta)*sin(d)+12/pi*cos(theta)*cos(d)*(sin(he)-sin(hb)))*gamma
 
-  # Radiation scattering and absorption #####################################
+  # Radiation scattering and absorption
 
   w = (he+hb)/2 # Hour angle
   alpha1 = abs(sin(theta)*sin(d)+cos(theta)*cos(d)*cos(w))
@@ -210,7 +210,7 @@ calc_cc <- function(date, airt, relh = NULL, dewt = NULL, swr, lat, lon, elev, d
 initial_profile <- function(initfile, nx, dx, depth, processed_meteo){
   meteo <- processed_meteo
   startDate <- meteo$datetime[1]
-  obs <- read_csv(initfile)
+  obs <- read_csv(initfile,show_col_types = FALSE)
   init.df <- obs %>%
     mutate(ditt = as.numeric(abs((datetime) - (startDate)))) %>%
     dplyr::filter(ditt == min(ditt)) %>%
@@ -227,7 +227,7 @@ initial_profile <- function(initfile, nx, dx, depth, processed_meteo){
 }
 
 get_hypsography <- function(hypsofile, dx, nx){
-  hyps <- read_csv(hypsofile)
+  hyps <- read_csv(hypsofile,show_col_types = FALSE)
   area = approx(hyps$Depth_meter,hyps$Area_meterSquared,seq(1,nx*dx,
                                                             length.out= nx))$y
   # area[which.min(area)] <- 1e-2
@@ -748,6 +748,9 @@ integrate_agg_fun <- function(dt, y, int_method){
 
 get_interp_drivers <- function(meteo_all, total_runtime, hydrodynamic_timestep = 86400, dt, method="interp", int_method="average",
                                secchi = T){
+  oldw <- getOption("warn")
+  options(warn = -1)
+
   times = seq(1, 1 + total_runtime*hydrodynamic_timestep, dt)
   meteo = matrix(NA, nrow = 9, ncol = length(times))
   if(method == "interp"){
@@ -832,419 +835,6 @@ get_interp_drivers <- function(meteo_all, total_runtime, hydrodynamic_timestep =
 
   rownames(meteo) = c("Jsw", "Jlw", "Tair", "ea", "Uw", "CC", "Pa", "kd", "RH")
 
+  options(warn = oldw)
   return(meteo)
 }
-
-run_thermalmodel <- function(u, # initial temperature profile
-                             startTime, # starting time
-                             endTime, # ending time
-                             ice = FALSE, # is ice exisitng?
-                             Hi = 0, # ice thickness
-                             iceT = 6, # movign average for ice formation
-                             supercooled = 0, # how many layers below 0 deg C?
-                             scheme = 'implicit', # numerical diffusion scheme
-                             kd_light = NULL, # light extinction
-                             densThresh = 1e-3, # threshold for convective overturn
-                             reflect = 0.3, # light reflection
-                             infra = 0.7, # infrared absorption
-                             albedo = 0.1, # water albedo
-                             eps = 0.97, # epsilon
-                             emissivity = 0.97, # water emissivity
-                             sigma = 5.67 * 10^(-8), # constant
-                             p2 = 1, # calibraiton value
-                             B = 0.61,
-                             g = 9.81, # gravity
-                             Cd = 0.0013, # momentum coefficient (wind)
-                             sw_factor = 1.0, # multiplier for short-wave radiation
-                             meltP = 1, # multiplier for melting energy
-                             dt_iceon_avg = 0.8, # determines ice formation
-                             Hgeo = 0.1, # geothermal heat flux
-                             KEice = 1/1000, # wind attenuation for ice cover
-                             Ice_min = 0.1, # minimum ice thickness
-                             area, # area
-                             depth, # depth
-                             volume, # volume
-                             zmax, # maximum lake depth
-                             nx, # number of layers we will have
-                             dt, # time step
-                             dx, # space step
-                             daily_meteo # meteorology
-                             ){
-
-  print('What a beautiful day to run a lake model.')
-
-  um <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
-  kzm <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
-  n2m <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
-  mix <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))#(floor(endTime/dt - startTime/dt)))
-  therm.z <- rep(NA, length =length(seq(startTime, endTime, dt)/dt))
-  mix.z <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
-  Him <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
-
-  SW <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
-  LW_in <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
-  LW_out <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
-  LAT <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
-  SEN <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
-
-  pb = txtProgressBar(min = startTime, max = endTime/dt, initial = 0)
-  stepi = 1
-  start.time <- Sys.time()
-
-  ## modeling code for vertical 1D mixing and heat transport
-  for (n in seq(startTime, endTime/dt, 1)){
-
-    if (!is.null(kd_light)){
-      kd = kd_light
-    }else{
-      kd = daily_meteo["kd",n]
-    }
-
-    un = u # prior temperature values
-
-    kz = eddy_diffusivity(calc_dens(un), depth, 9.81, 998.2, ice, area) / 86400
-
-    if (ice & daily_meteo["Tair",n] <= 0){
-      kzn = kz
-      absorp = 1 - 0.7
-      infra = 1 - absorp
-      albedo = 0.7
-    } else if (ice & daily_meteo["Tair",n] >= 0){
-      kzn = kz
-      absorp = 1 - 0.3
-      infra = 1 - absorp
-      albedo = 0.7
-    } else if (!ice) {
-      kzn = kz
-      absorp = 1 - reflect# 0.3
-      infra = 1 - absorp
-      albedo = 0.1
-    }
-    kzm[, n] <- kzn
-
-
-    ## (1) Heat addition
-    # surface heat flux
-    Q <- (
-      longwave(cc = daily_meteo["CC",n], sigma = sigma, Tair = daily_meteo["Tair",n], ea = daily_meteo["ea",n], emissivity = emissivity, Jlw = daily_meteo["Jlw",n]) +
-        backscattering(emissivity = emissivity, sigma = sigma, Twater = un[1], eps = eps) +
-        latent(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n], RH = daily_meteo["RH",n], A = area, Cd = Cd) +
-        sensible(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n], RH = daily_meteo["RH",n], A = area, Cd = Cd))
-    SW[n] <- absorp * daily_meteo["Jsw",n]
-    LW_in[n] <- longwave(cc = daily_meteo["CC",n], sigma = sigma, Tair = daily_meteo["Tair",n], ea = daily_meteo["ea",n], emissivity = emissivity, Jlw = daily_meteo["Jlw",n])
-    LW_out[n] <- backscattering(emissivity = emissivity, sigma = sigma, Twater = un[1], eps = eps)
-    LAT[n] <- latent(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n], RH = daily_meteo["RH",n], A = area, Cd = Cd)
-    SEN[n] <- sensible(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n], RH = daily_meteo["RH",n], A = area, Cd = Cd)
-
-
-    # heat addition over depth
-    H =  (1- albedo) * (daily_meteo["Jsw",n] * sw_factor) * exp(-(kd) *depth)
-
-    Hg <- (area-lead(area))/dx * Hgeo/(4181 * calc_dens(un))
-    Hg[nx] <- (area[nx-1]-area[nx])/dx * Hgeo/(4181 * calc_dens(un[nx]))
-
-
-
-    # add heat to all layers
-    ## (2) DIFFUSION
-    if (scheme == 'implicit'){
-      ## (2a) Boundary heat addition
-      # surface layer
-      u[1] = un[1] +
-        (Q * area[1]/(dx)*1/(4184 * calc_dens(un[1]) ) +
-           abs(H[1+1]-H[1]) * area[1]/(dx) * 1/(4184 * calc_dens(un[1]) ) +
-           Hg[1]) * dt/area[1]
-
-
-      # all other layers in between
-      for (i in 2:(nx-1)){
-        u[i] = un[i] +
-          (abs(H[i+1]-H[i]) * area[i]/(dx) * 1/(4184 * calc_dens(un[i]) ) +
-             Hg[i])* dt/area[i]
-
-      }
-
-      # bottom layer
-      u[nx] = un[nx] +
-        (abs(H[nx]-H[nx-1]) * area[nx]/(area[nx]*dx) * 1/(4181 * calc_dens(un[nx])) +
-           Hg[nx]/area[nx]) * dt
-
-      ## (2b) Diffusion by Crank-Nicholson Scheme (CNS)
-      j <- length(u)
-      y <- array(0, c(j,j))
-
-      # all other layers in between
-      # Linearized heat conservation equation matrix (diffusion only)
-      alpha = (dt/dx**2) * kzn
-      az <- -alpha                               #coefficient for i-1
-      bz <- 2 * (1 + alpha)                                                       #coefficient for i
-      cz <- -alpha                #coefficient for i+1
-
-      #Boundary conditions, surface
-      az[1] <- 0
-      bz[1]<- 1
-      cz[length(cz)] <- 0
-      bz[length(bz)] <- 1
-
-
-      y[0 + 1:(j - 1) * (j + 1)] <- cz[-length(bz)]	# superdiagonal
-      y[1 + 0:(j - 1) * (j + 1)] <- bz	# diagonal
-      y[2 + 0:(j - 2) * (j + 1)] <- az[-1] 	# subdiagonal
-
-      y[1,2] <- 0#
-      y[nrow(y), (ncol(y)-1)] = 0
-
-      mn <- rep(0, j)
-      mn[1] = u[1]
-      mn[j] = u[j]
-      for (g in 2:(j-1)){
-        mn[g] = alpha[g] * u[g-1] + 2 * (1-alpha[g])*u[g] + alpha[g] * u[g+1]
-      }
-
-      u  <- solve(y, mn)
-
-    }
-
-
-    # surface layer
-    if (scheme == 'explicit'){ # forward time centered space (FTCS)
-      u[1] = un[1] +
-        (Q * area[1]/(dx)*1/(4184 * calc_dens(un[1]) ) +
-           abs(H[1+1]-H[1]) * area[1]/(dx) * 1/(4184 * calc_dens(un[1]) ) +
-           Hg[1]) * dt/area[1]
-
-      # all other layers in between
-      for (i in 2:(nx-1)){
-        u[i] = un[i] +
-          (area[i] * kzn[i] * 1 / dx**2 * (un[i+1] - 2 * un[i] + un[i-1]) +
-             abs(H[i+1]-H[i]) * area[i]/(dx) * 1/(4184 * calc_dens(un[i]) ) +
-             Hg[i])* dt/area[i]
-      }
-      # bottom layer
-      u[nx] = un[nx] +
-        abs(H[nx]-H[nx-1]) * area[nx]/(area[nx]*dx) * 1/(4181 * calc_dens(un[nx]) +
-                                                           Hg[nx]/area[nx]) * dt
-    }
-
-
-
-    ## (3) TURBULENT MIXING OF MIXED LAYER
-    # the mixed layer depth is determined for each time step by comparing kinetic
-    # energy available from wind and the potential energy required to completely
-    # mix the water column to a given depth
-
-    Zcv <- depth %*% area / sum(area) # center of volume
-    tau = 1.225 * Cd * daily_meteo["Uw",n]^2 # wind shear is air density times wind velocity
-    if (daily_meteo["Uw",n] <= 15) {
-      c10 = 0.0005 * sqrt(daily_meteo["Uw",n])
-    } else {
-      c10 = 0.0026
-    }
-    shear = sqrt((c10 * calc_dens(un[1]))/1.225) *  daily_meteo["Uw",n] # shear velocity
-    # coefficient times wind velocity squared
-    KE = shear *  tau * dt # kinetic energy as function of wind
-
-    if (ice){
-      KE = KE * KEice
-    }
-    maxdep = 1
-    for (dep in 1:(nx-1)){
-      if (dep == 1){
-
-        PE = abs(g *   depth[dep] *( depth[dep+1] - Zcv)  *
-
-                   abs(calc_dens(u[dep+1])- mean(calc_dens(u[1:dep]))))
-      } else {
-        PEprior = PE
-
-        PE = abs(g *   depth[dep] *( depth[dep+1] - Zcv)  *
-
-                   abs(calc_dens(u[dep+1])- mean(calc_dens(u[1:dep])))) + PEprior
-
-      }
-      if (PE > KE){
-        maxdep = dep-1
-        break
-      } else if (dep>1 & PE < KE ){
-        u[(dep-1):dep] = (u[(dep-1):dep] %*% volume[(dep-1):dep])/sum(volume[(dep-1):dep])
-      }
-      maxdep = dep
-    }
-
-    mix[n] <- KE/PE
-    therm.z[n] <- maxdep
-
-
-    ## (4) DENSITY INSTABILITIES
-    # convective overturn: Convective mixing is induced by an unstable density
-    # profile. All groups of water layers where the vertical density profile is
-    # unstable are mixed with the first stable layer below the unstable layer(s)
-    # (i.e., a layer volume weighed means of temperature and other variables are
-    # calculated for the mixed water column). This procedure is continued until
-    # the vertical density profile in the whole water column becomes neutral or stable.
-
-    dens_u = calc_dens(u)
-    diff_dens_u <- (diff(dens_u))
-    diff_dens_u[abs(diff(dens_u)) <= densThresh] = 0
-    while (any(diff_dens_u < 0)){
-      dens_u = calc_dens(u)
-      for (dep in 1:(nx-1)){
-        if (dens_u[dep+1] < dens_u[dep] & abs(dens_u[dep+1] - dens_u[dep]) >= densThresh){
-          u[dep:(dep+1)] = (u[dep:(dep+1)] %*% volume[dep:(dep+1)])/sum(volume[dep:(dep+1)]) #mean(u[dep:(dep+1)])
-          break
-        }
-      }
-      dens_u = calc_dens(u)
-      diff_dens_u <- (diff(dens_u))
-      diff_dens_u[abs(diff(dens_u)) <= densThresh] = 0
-    }
-
-    dens_u_n2 = calc_dens(u)
-    n2 <- 9.81/mean(calc_dens(u)) * (lead(dens_u_n2) - dens_u_n2)/dx
-    max.n2 <- ifelse(max(n2, na.rm = T) > 1E-4, which.max(n2) * dx, dx * nx)
-    mix.z[n] <- max.n2
-
-
-
-    ## (5) ICE FORMATION
-    # according to Hostetler & Bartlein (1990):
-    # (1) ice forms when surface water temp <= 1 deg C and melts when > 1 deg
-    # (2) rate of ice formation/melting is exponential function of ice thickness
-    # (the thicker the ice, the slower the formation rate, and vice versa)
-    # (3) heat of fusion is added/subtracted from surface energy balance
-    # (4) diffusion below ice only happens on molecular level
-    # (5) with ice, surface absorption of incoming solar radiation increases to 85 %
-
-    icep  = max(dt_iceon_avg,  (dt/86400))
-    x = (dt/86400) / icep
-    iceT = iceT * (1 - x) + u[1] * x
-
-    Him[ n] <- Hi
-
-
-    if ((iceT <= 0) == TRUE & Hi < Ice_min & daily_meteo["Tair",n] <= 0){
-      supercooled <- which(u < 0)
-      initEnergy <- sum((0-u[supercooled])*area[supercooled] * dx * 4.18E6)
-
-      if (ice != TRUE) {
-        Hi <- Ice_min+(initEnergy/(910*333500))/max(area)
-      } else {
-        if (daily_meteo["Tair",n] > 0){
-          Tice <- 0 #
-          Hi = Hi -max(c(0, meltP * dt*((absorp*daily_meteo["Jsw",n])+(longwave(cc = daily_meteo["CC",n], sigma = sigma, Tair = daily_meteo["Tair",n], ea = daily_meteo["ea",n], emissivity = emissivity, Jlw = daily_meteo["Jlw",n]) +
-                                                                         backscattering(emissivity = emissivity, sigma = sigma, Twater = un[1], eps = eps) +
-                                                                         latent(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n],  RH = daily_meteo["RH",n], A = area, Cd = Cd) +
-                                                                         sensible(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n], RH = daily_meteo["RH",n], A = area, Cd = Cd)) )/(1000*333500)))
-        } else {
-          Tice <-  ((1/(10 * Hi)) * 0 + daily_meteo["Tair",n]) / (1 + (1/(10 * Hi)))
-          Hi <- max(Ice_min, sqrt(Hi**2 + 2 * 2.1/(910 * 333500)* (0 - Tice) * dt))
-        }
-      }
-      ice = TRUE
-      if (Hi >= 0){
-        u[supercooled] = 0
-        u[1] = 0
-      }
-      Him[ n] <- Hi
-    } else if (ice == TRUE & Hi >= Ice_min) {
-      if (daily_meteo["Tair",n] > 0){
-        Tice <- 0 #
-        Hi = Hi -max(c(0, meltP * dt*((absorp*daily_meteo["Jsw",n])+(longwave(cc = daily_meteo["CC",n], sigma = sigma, Tair = daily_meteo["Tair",n], ea = daily_meteo["ea",n], emissivity = emissivity, Jlw = daily_meteo["Jlw",n]) +
-                                                                        backscattering(emissivity = emissivity, sigma = sigma, Twater = un[1], eps = eps) +
-                                                                       latent(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n],  RH = daily_meteo["RH",n], A = area, Cd = Cd) +
-                                                                       sensible(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n], RH = daily_meteo["RH",n], A = area, Cd = Cd)) )/(1000*333500)))
-      } else {
-        Tice <-  ((1/(10 * Hi)) * 0 +  daily_meteo["Tair",n]) / (1 + (1/(10 * Hi)))
-        Hi <- max(Ice_min, sqrt(Hi**2 + 2 * 2.1/(910 * 333500)* (0 - Tice) * dt))
-      }
-      u[supercooled] = 0
-      u[1] = 0
-      Him[ n] <- Hi
-    } else if (ice == TRUE & Hi < Ice_min){
-      ice = FALSE
-      Him[ n] <- Hi
-    }
-
-    if (ice == FALSE){
-      Hi = 0
-      Him[n] = Hi
-    }
-
-    n2m[, n] <- n2
-    um[, n] <- u
-
-
-    stepi = stepi + 1
-    setTxtProgressBar(pb,stepi)
-  }
-  end.time <- Sys.time()
-  time.taken <- end.time - start.time
-  print(time.taken)
-
-  df.sim <- data.frame(cbind(seq(startTime,endTime,dt), t(um)) )
-  colnames(df.sim) <- c("datetime", as.character(paste0('wtemp.',seq(1,nrow(um))*dx)))
-  df.sim$datetime <-   seq(startTime, endTime, dt)#/24/3600
-
-  ## averaged responses
-  bf.sim <- apply(df.sim[,-1], 1, function(x) rLakeAnalyzer::buoyancy.freq(wtr = x, depths = seq(1,nrow(um))*dx))
-
-  bf.sim <- apply(df.sim[,-1], 1, function(x) rLakeAnalyzer::center.buoyancy(wtr = x, depths = seq(1,nrow(um))*dx))
-
-  df.z.df.sim <- data.frame('time' = df.sim$datetime, 'z' = bf.sim)
-
-  avg.epi.sim <- NULL
-  avg.hyp.sim <- NULL
-  avg.tot.sim <- NULL
-  for (j in 1:nrow(df.z.df.sim)){
-    d = df.sim[,-1]
-    if (is.na(df.z.df.sim$z[j])){
-      df.z.df.sim$z[j] = 1
-    }
-    avg.epi.sim <- append(avg.epi.sim,((as.numeric(d[j,1:df.z.df.sim$z[j]], na.rm = T) %*%
-                                          area[1:df.z.df.sim$z[j]] )/
-                                         sum(area[1:df.z.df.sim$z[j]])))
-    avg.hyp.sim <- append(avg.hyp.sim,((as.numeric(d[j,df.z.df.sim$z[j]:ncol(d)], na.rm = T)%*%
-                                          area[df.z.df.sim$z[j]:ncol(d)] )/
-                                         sum(area[df.z.df.sim$z[j]:ncol(d)])))
-    avg.tot.sim <- append(avg.tot.sim,((as.numeric(d[j,1:ncol(d)], na.rm = T)%*%
-                                          area[1:ncol(d)] )/
-                                         sum(area[1:ncol(d)])))
-  }
-
-  stratFlag = rep(NA, length = ncol(um))
-  for (v in 1:length(stratFlag)){
-    stratFlag[v] = ifelse((calc_dens(um[nx,v]) - calc_dens(um[1,v])) >= 0.1 &
-                            mean(um[,v]) >= 4, 1, 0)
-  }
-
-
-  df.avg.sim <- data.frame('time' = df.sim$datetime,
-                           'epi' = avg.epi.sim,
-                           'hyp' = avg.hyp.sim,
-                           'tot' = avg.tot.sim,
-                           'stratFlag' = stratFlag,
-                           'thermoclineDep' = bf.sim)
-  print("Have a lovely rest of your day!")
-  dat = list('temp'  = um,
-             'diff' = kzm,
-             'mixing' = mix,
-             'buoyancy' = n2m,
-             'icethickness' = Him,
-             'iceflag' = ice,
-             'icemovAvg' = iceT,
-             'supercooled' = supercooled,
-             'mixingdepth' = mix.z,
-             'thermoclinedepth' = therm.z,
-             'endtime' = endTime,
-             'average' = df.avg.sim,
-             'SW' = SW,
-             'LW_in' = LW_in,
-             'LW_out' = LW_out,
-             'LAT' = LAT,
-             'SEN' = SEN)
-
-  return(dat)
-
-
-}
-
