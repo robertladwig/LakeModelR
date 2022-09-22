@@ -91,7 +91,9 @@ ggplot(avgtemp) +
   geom_line(aes(time, epi, col = 'epilimnion')) +
   geom_line(aes(time, hyp, col = 'hypolimnion')) +
   geom_line(aes(time, tot, col = 'total')) +
-  theme_minimal()
+  theme_minimal() + xlab('Time') +
+  ylab('Temp [degC]') +
+  labs(col = 'Volumes')
 
 ## CREATE DATAFRAME FOR FULL TEMPERATURE PROFILES
 df <- data.frame(cbind(time, t(temp)) )

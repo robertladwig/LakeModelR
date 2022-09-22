@@ -68,7 +68,7 @@
 #' @param Cdplant double; drag coefficient macrophytes. Defaults to 0.0
 #' @param ahat double; surface to volume ratio macrophytes. Defaults to 0.4
 #' @param km double; ight extinction macrophytes in m-1. Defaults to 0.0
-#' @param rho_plant double; density macrophytes. Defaults to 998.2 kg/m3
+#' @param rho_plant double; density macrophytes. Defaults to 30 kg/m3
 #' @param canpy dataframe; canophy height time series, NULL refers to no macrophyte simulations. Defaults to NULL
 #' @param biomass dataframe; biomass time series, NULL refers to no macrophyte simulations. Defaults to NULL
 #' @author Robert Ladwig
@@ -135,7 +135,7 @@ run_thermalmodel <- function(u, # initial temperature profile
                              Cdplant = 0.0, # drag coefficient macrophytes
                              ahat = 0.4, # surface to volume macrophytes
                              km = 0.0, # light extinction macrophytes
-                             rho_plant = 998.2, # density macrophytes
+                             rho_plant = 30, # density macrophytes
                              canpy = NULL, # canophy height time series
                              biomass = NULL # biomass time series
 ){

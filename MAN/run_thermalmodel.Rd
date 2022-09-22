@@ -42,7 +42,7 @@ run_thermalmodel(
   Cdplant = 0,
   ahat = 0.4,
   km = 0,
-  rho_plant = 998.2,
+  rho_plant = 30,
   canpy = NULL,
   biomass = NULL
 )
@@ -122,7 +122,7 @@ run_thermalmodel(
 
 \item{km}{double; ight extinction macrophytes in m-1. Defaults to 0.0}
 
-\item{rho_plant}{double; density macrophytes. Defaults to 998.2 kg/m3}
+\item{rho_plant}{double; density macrophytes. Defaults to 30 kg/m3}
 
 \item{canpy}{dataframe; canophy height time series, NULL refers to no macrophyte simulations. Defaults to NULL}
 
