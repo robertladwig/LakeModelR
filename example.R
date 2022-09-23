@@ -218,7 +218,7 @@ m.df.dissoxygen$time <- time
 df.ice = data.frame('time' = time,
                     'ice_h' = ice)
 
-## HEATMAP OF WATER TEMPERATURE WITH THERMOCLINE DEPTH AND ICE THICKNESS
+## HEATMAP OF DISSOLVED OXYGEN WITH THERMOCLINE DEPTH AND ICE THICKNESS
 ggplot(m.df.dissoxygen, aes((time), dx*as.numeric(as.character(variable)))) +
   geom_raster(aes(fill = as.numeric(value)), interpolate = TRUE) +
   scale_fill_gradientn(limits = c(0,15),
