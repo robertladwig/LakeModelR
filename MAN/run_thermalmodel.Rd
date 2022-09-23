@@ -44,7 +44,9 @@ run_thermalmodel(
   km = 0,
   rho_plant = 30,
   canpy = NULL,
-  biomass = NULL
+  biomass = NULL,
+  water.quality = FALSE,
+  wq = NULL
 )
 }
 \arguments{
@@ -127,6 +129,10 @@ run_thermalmodel(
 \item{canpy}{dataframe; canophy height time series, NULL refers to no macrophyte simulations. Defaults to NULL}
 
 \item{biomass}{dataframe; biomass time series, NULL refers to no macrophyte simulations. Defaults to NULL}
+
+\item{water.quality}{logical; if TRUE runs water quality (need a defined function 'water_quality_boundary_conditions'). Defaults to FALSE}
+
+\item{wq}{vector; initial vector of water quality variable profile, needs water.quality = TRUE. Defaults to NULL}
 }
 \description{
 Returns a data frame containing model output in the form of vertical temperature

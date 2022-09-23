@@ -71,6 +71,8 @@
 #' @param rho_plant double; density macrophytes. Defaults to 30 kg/m3
 #' @param canpy dataframe; canophy height time series, NULL refers to no macrophyte simulations. Defaults to NULL
 #' @param biomass dataframe; biomass time series, NULL refers to no macrophyte simulations. Defaults to NULL
+#' @param water.quality logical; if TRUE runs water quality (need a defined function 'water_quality_boundary_conditions'). Defaults to FALSE
+#' @param wq vector; initial vector of water quality variable profile, needs water.quality = TRUE. Defaults to NULL
 #' @author Robert Ladwig
 #'
 #' @examples
@@ -137,8 +139,11 @@ run_thermalmodel <- function(u, # initial temperature profile
                              km = 0.0, # light extinction macrophytes
                              rho_plant = 30, # density macrophytes
                              canpy = NULL, # canophy height time series
-                             biomass = NULL # biomass time series
+                             biomass = NULL, # biomass time series
+                             water.quality = FALSE, # check if water quality simulation should be run
+                             wq = NULL # initial water quality profile
 ){
+
   greet <- data.frame(greet = c('What a beautiful day to run a lake model.', 'What is the deepest lake in the world?', 'What is the highest elevation lake in the world?', 'Which country has the most lakes in the world?'),
                       bye = c('Have a lovely rest of your day!', 'Lake Baikal is the deepest lake of the world (1,620 meters [5,315 feet])', "Ojos del Salado is the highest active volcano and fresh waterbody of the world, at 6,390 meters (20,965 feet).", "Canada has the most lakes in the world: an estimated 879,800. Russia comes second with about 201,200 lakes."))
   whichgreet <- sample(x = 1:nrow(greet), size = 1) # Sample one greeting message
@@ -155,6 +160,7 @@ run_thermalmodel <- function(u, # initial temperature profile
   macrobiomss <- approxfun(x = biomass$dt, y = biomass$mean_biomass, method = "linear", rule = 2)
 
   um <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
+  wqm <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
   kzm <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
   n2m <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
   mix <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))#(floor(endTime/dt - startTime/dt)))
@@ -310,6 +316,43 @@ run_thermalmodel <- function(u, # initial temperature profile
                                                            Hg[nx]/area[nx]) * dt
     }
 
+    if (water.quality){
+
+      wq <- water_quality_boundary_conditions(WQ = wq, TEMP = u, WIND = daily_meteo["Uw", n],
+                                              AREA = area, VOLUME = volume, ICE = ice, dt = dt,
+                                              dx = dx, nx = nx)
+
+      j <- length(wq)
+      y <- array(0, c(j,j))
+
+      alpha = (dt/dx**2) * kzn
+      az <- -alpha
+      bz <- 2 * (1 + alpha)
+      cz <- -alpha
+
+      az[1] <- 0
+
+      bz[1]<- 1
+
+      cz[length(cz)] <- 0
+      bz[length(bz)] <- 1
+      y[0 + 1:(j - 1) * (j + 1)] <- cz[-length(bz)]
+      y[1 + 0:(j - 1) * (j + 1)] <- bz
+      y[2 + 0:(j - 2) * (j + 1)] <- az[-1]
+
+      y[1,2] <- 0
+      y[nrow(y), (ncol(y)-1)] = 0
+
+      mn <- rep(0, j)
+      mn[1] = wq[1]
+      mn[j] = wq[j]
+      for (g in 2:(j-1)){
+        mn[g] = alpha[g] * wq[g-1] + 2 * (1-alpha[g])*wq[g] + alpha[g] * wq[g+1]
+      }
+
+      wq  <- solve(y, mn)
+    }
+
 
 
     ## (3) TURBULENT MIXING OF MIXED LAYER
@@ -356,6 +399,10 @@ run_thermalmodel <- function(u, # initial temperature profile
         break
       } else if (dep>1 & PE < KE ){
         u[(dep-1):dep] = (u[(dep-1):dep] %*% volume[(dep-1):dep])/sum(volume[(dep-1):dep])
+
+        if (water.quality){
+          wq[(dep-1):dep] = (wq[(dep-1):dep] %*% volume[(dep-1):dep])/sum(volume[(dep-1):dep])
+        }
       }
       maxdep = dep
     }
@@ -379,7 +426,11 @@ run_thermalmodel <- function(u, # initial temperature profile
       dens_u = calc_dens(u)
       for (dep in 1:(nx-1)){
         if (dens_u[dep+1] < dens_u[dep] & abs(dens_u[dep+1] - dens_u[dep]) >= densThresh){
-          u[dep:(dep+1)] = (u[dep:(dep+1)] %*% volume[dep:(dep+1)])/sum(volume[dep:(dep+1)]) #mean(u[dep:(dep+1)])
+          u[dep:(dep+1)] = (u[dep:(dep+1)] %*% volume[dep:(dep+1)])/sum(volume[dep:(dep+1)])
+
+          if (water.quality){
+            wq[dep:(dep+1)] = (wq[dep:(dep+1)] %*% volume[dep:(dep+1)])/sum(volume[dep:(dep+1)])
+          }
           break
         }
       }
@@ -462,6 +513,10 @@ run_thermalmodel <- function(u, # initial temperature profile
     n2m[, n] <- n2
     um[, n] <- u
 
+    if (water.quality){
+      wqm[, n] <- wq
+    }
+
 
     stepi = stepi + 1
     setTxtProgressBar(pb,stepi)
@@ -530,7 +585,8 @@ run_thermalmodel <- function(u, # initial temperature profile
              'LW_in' = LW_in,
              'LW_out' = LW_out,
              'LAT' = LAT,
-             'SEN' = SEN)
+             'SEN' = SEN,
+             'water.quality' = wqm)
 
   return(dat)
 
