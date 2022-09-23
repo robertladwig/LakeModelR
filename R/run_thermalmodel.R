@@ -139,8 +139,11 @@ run_thermalmodel <- function(u, # initial temperature profile
                              canpy = NULL, # canophy height time series
                              biomass = NULL # biomass time series
 ){
+  greet <- data.frame(greet = c('What a beautiful day to run a lake model.', 'What is the deepest lake in the world?', 'What is the highest elevation lake in the world?', 'Which country has the most lakes in the world?'),
+                      bye = c('Have a lovely rest of your day!', 'Lake Baikal is the deepest lake of the world (1,620 meters [5,315 feet])', "Ojos del Salado is the highest active volcano and fresh waterbody of the world, at 6,390 meters (20,965 feet).", "Canada has the most lakes in the world: an estimated 879,800. Russia comes second with about 201,200 lakes."))
+  whichgreet <- sample(x = 1:nrow(greet), size = 1) # Sample one greeting message
 
-  print('What a beautiful day to run a lake model.')
+  cat(greet[whichgreet, 1])
 
   if (is.null(canpy)){
     canpy = data.frame('dt' = c(0, endTime/dt), 'mean_canopy' = c(0,0))
@@ -510,7 +513,7 @@ run_thermalmodel <- function(u, # initial temperature profile
                            'tot' = avg.tot.sim,
                            'stratFlag' = stratFlag,
                            'thermoclineDep' = bf.sim)
-  print("Have a lovely rest of your day!")
+  cat(greet[whichgreet, 2])
   dat = list('temp'  = um,
              'diff' = kzm,
              'mixing' = mix,
