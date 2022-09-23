@@ -14,8 +14,8 @@ Imports:
     zoo,
     dplyr,
     lubridate,
-    reshape2
-Suggests:
+    reshape2,
+    pracma,
     rLakeAnalyzer
 License: GPL-3.0 license
 Encoding: UTF-8
