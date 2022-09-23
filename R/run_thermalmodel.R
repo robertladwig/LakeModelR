@@ -144,8 +144,15 @@ run_thermalmodel <- function(u, # initial temperature profile
                              wq = NULL # initial water quality profile
 ){
 
-  greet <- data.frame(greet = c('What a beautiful day to run a lake model.', 'What is the deepest lake in the world?', 'What is the highest elevation lake in the world?', 'Which country has the most lakes in the world?'),
-                      bye = c('Have a lovely rest of your day!', 'Lake Baikal is the deepest lake of the world (1,620 meters [5,315 feet])', "Ojos del Salado is the highest active volcano and fresh waterbody of the world, at 6,390 meters (20,965 feet).", "Canada has the most lakes in the world: an estimated 879,800. Russia comes second with about 201,200 lakes."))
+  greet <- data.frame(greet = c('What a beautiful day to run a lake model.',
+                                'What is the deepest lake in the world?',
+                                'What is the highest elevation lake in the world?',
+                                'Which country has the most lakes in the world?'),
+                      bye = c('Have a lovely rest of your day!',
+                              'Lake Baikal is the deepest lake of the world (1,620 meters [5,315 feet])',
+                              'Ojos del Salado is the highest active volcano and fresh waterbody of the world, at 6,390 meters (20,965 feet).',
+                              'Canada has the most lakes in the world: an estimated 879,800. Russia comes second with about 201,200 lakes.'))
+
   whichgreet <- sample(x = 1:nrow(greet), size = 1) # Sample one greeting message
 
   cat(greet[whichgreet, 1])
