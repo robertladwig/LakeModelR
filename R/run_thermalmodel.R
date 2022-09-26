@@ -73,6 +73,7 @@
 #' @param biomass dataframe; biomass time series, NULL refers to no macrophyte simulations. Defaults to NULL
 #' @param water.quality logical; if TRUE runs water quality (need a defined function 'water_quality_boundary_conditions'). Defaults to FALSE
 #' @param wq vector; initial vector of water quality variable profile, needs water.quality = TRUE. Defaults to NULL
+#' @param agents vector; initial vector of individual phytoplankton cells. Defaults to NULL
 #' @author Robert Ladwig
 #'
 #' @examples
@@ -141,7 +142,8 @@ run_thermalmodel <- function(u, # initial temperature profile
                              canpy = NULL, # canophy height time series
                              biomass = NULL, # biomass time series
                              water.quality = FALSE, # check if water quality simulation should be run
-                             wq = NULL # initial water quality profile
+                             wq = NULL, # initial water quality profile
+                             agents = NULL # initial profile of phytoplankton individuals
 ){
 
   greet <- data.frame(greet = c('What a beautiful day to run a lake model.',
@@ -156,6 +158,12 @@ run_thermalmodel <- function(u, # initial temperature profile
   whichgreet <- sample(x = 1:nrow(greet), size = 1) # Sample one greeting message
 
   cat(greet[whichgreet, 1])
+
+  if(is.null(agents)){
+    IBM_flag = FALSE
+  } else {
+    IBM_flag = TRUE
+  }
 
   if (is.null(canpy)){
     canpy = data.frame('dt' = c(0, endTime/dt), 'mean_canopy' = c(0,0))
@@ -174,6 +182,8 @@ run_thermalmodel <- function(u, # initial temperature profile
   therm.z <- rep(NA, length =length(seq(startTime, endTime, dt)/dt))
   mix.z <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
   Him <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
+  magents <- matrix(NA, ncol  = length(seq(startTime, endTime, dt)/dt), nrow = length(agents))
+  mloc <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
 
   SW <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
   LW_in <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
@@ -454,13 +464,8 @@ run_thermalmodel <- function(u, # initial temperature profile
 
 
     ## (5) ICE FORMATION
-    # according to Hostetler & Bartlein (1990):
-    # (1) ice forms when surface water temp <= 1 deg C and melts when > 1 deg
-    # (2) rate of ice formation/melting is exponential function of ice thickness
-    # (the thicker the ice, the slower the formation rate, and vice versa)
-    # (3) heat of fusion is added/subtracted from surface energy balance
-    # (4) diffusion below ice only happens on molecular level
-    # (5) with ice, surface absorption of incoming solar radiation increases to 85 %
+    # according to Saloranta & Andersen (2007) and ice growth due to Stefan's law
+    # (Leppäranta 1991)
 
     icep  = max(dt_iceon_avg,  (dt/86400))
     x = (dt/86400) / icep
@@ -524,6 +529,39 @@ run_thermalmodel <- function(u, # initial temperature profile
       wqm[, n] <- wq
     }
 
+
+    ## (6) Individual-based Modeling
+    # Modeled using passive transport approach from Hellweger & Bucci (2009)
+    dKdz = rep(1, (nx))
+    for (i in seq(2, nx-1)){
+      dKdz[i] = ( abs(kzn[i+1] - kzn[i-1]) / (2 * dx) )
+    }
+    dKdz[nx] = ( abs(kzn[nx] - kzn[nx-1]) / abs(depth[nx] - depth[nx-1]) )
+    dKdz[1] = ( abs(kzn[1+1] - kzn[1]) / abs(depth[1+1] - depth[1]) )
+
+    intdKdz = approx(seq(1,nx)*dx, dKdz, agents)$y
+    intkzn = approx(seq(1,nx)*dx, kzn,
+                    agents + 0.5 * intdKdz * dt)$y
+
+    agents <- agents + intdKdz * dt +
+      rnorm(length(agents),0,1)  * sqrt(2 * intkzn * dt)
+
+    agents[which(agents >= max(seq(1,nx)*dx))] = rep(max(seq(1,nx)*dx), length(agents[agents >= max(seq(1,nx)*dx)] )) + (rep(max(seq(1,nx)*dx),   length( agents[agents >= max(seq(1,nx)*dx)] )) - agents[which(agents >= max(seq(1,nx)*dx))])
+    agents[which(agents <= min(seq(1,nx)*dx))] = rep(min(seq(1,nx)*dx), length(agents[agents <= min(seq(1,nx)*dx)] )) + (rep(min(seq(1,nx)*dx),  length(agents[agents <= min(seq(1,nx)*dx)] )) - agents[which(agents <= min(seq(1,nx)*dx))])
+
+    magents[, n] <- agents
+
+    if(IBM_flag){
+
+      suppressWarnings(suppressMessages(loc <- left_join(x = data.frame(numbers = seq(1,nx)*dx),
+                                                         y = data.frame(numbers = round(agents)) %>%
+                                                           group_by(numbers) %>%
+                                                           count()) %>%
+                                          replace_na(list('n' = 0))))
+
+      mloc[, n] <- loc$n
+
+    }
 
     stepi = stepi + 1
     setTxtProgressBar(pb,stepi)
@@ -593,7 +631,9 @@ run_thermalmodel <- function(u, # initial temperature profile
              'LW_out' = LW_out,
              'LAT' = LAT,
              'SEN' = SEN,
-             'water.quality' = wqm)
+             'water.quality' = wqm,
+             'agents' = magents,
+             'location' = mloc)
 
   return(dat)
 

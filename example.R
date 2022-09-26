@@ -229,3 +229,74 @@ ggplot(m.df.dissoxygen, aes((time), dx*as.numeric(as.character(variable)))) +
   geom_line(data = avgtemp, aes(time, thermoclineDep, col = 'thermocline depth'), linetype = 'dashed', col = 'brown') +
   geom_line(data = df.ice, aes(time, ice_h * (-1), col = 'ice thickness'), linetype = 'solid', col = 'darkblue') +
   scale_y_reverse()
+
+## DEFINE INITIAL AMOUNT OF INDIVIDUALS AND LOCATION (DEPTH)
+nind = 1e2
+agents = c(rep(10,nind))
+
+## RUN THE LAKE MODEL
+res <-  run_thermalmodel(u = u_ini,
+                         startTime = startTime,
+                         endTime =  endTime,
+                         ice = FALSE,
+                         Hi = 0,
+                         iceT = 6,
+                         supercooled = 0,
+                         kd_light = 0.5,
+                         sw_factor = 1.0,
+                         zmax = zmax,
+                         nx = nx,
+                         dt = dt,
+                         dx = dx,
+                         area = hyps_all[[1]], # area
+                         depth = hyps_all[[2]], # depth
+                         volume = hyps_all[[3]], # volume
+                         daily_meteo = meteo,
+                         Cd = 0.0013,
+                         scheme = 'implicit',
+                         agents = agents)
+
+## SAVE THE RESULTS
+individuals = res$agents
+avgtemp = res$average
+location = res$location
+
+
+## POST-PROCESSING OF THE RESULTS
+time =  startingDate + seq(1, ncol(temp), 1) * dt
+avgtemp = as.data.frame(avgtemp)
+colnames(avgtemp) = c('time', 'epi', 'hyp', 'tot', 'stratFlag', 'thermoclineDep')
+avgtemp$time = time
+
+df.individuals <- data.frame(cbind(time, t(individuals)) )
+colnames(df.individuals) <- c("time", as.character(paste0(seq(1,nrow(individuals)))))
+m.df.individuals <- reshape2::melt(df.individuals, "time")
+m.df.individuals$time <- time
+
+df.loc <- data.frame(cbind(time, t(location)) )
+colnames(df.loc) <- c("time", as.character(paste0(seq(1,nrow(location)))))
+m.df.loc <- reshape2::melt(df.loc, "time")
+m.df.loc$time <- time
+
+## PLOTTING OF PHYTOPLANKTON INDIVIDUAL TIME SERIES
+ggplot(m.df.individuals, aes((time), as.numeric(value), col = variable)) +
+  geom_line() +
+  geom_point(aes(col = variable)) +
+  geom_line(data = avgtemp, aes(time, thermoclineDep, col = 'thermocline depth'), linetype = 'dashed', col = 'brown') +
+  theme_minimal()  +xlab('Time') +
+  ylab('Depth') +
+  labs(fill = 'Tracer [-]')+
+  scale_y_reverse() + theme(legend.position = "none")
+
+## HEATMAP OF INDIVIDUAL PHYTOPLANKTONS
+ggplot(m.df.loc, aes((time), as.numeric(as.character(variable)))) +
+  geom_raster(aes(fill = as.numeric(value)), interpolate = TRUE) +
+  scale_fill_gradientn(limits = c(0, 30),
+                       colours = (RColorBrewer::brewer.pal(9, 'GnBu')))+
+  theme_minimal()  +xlab('Time') +
+  ylab('Depth [m]') +
+  labs(fill = 'Phytoplankton [inds]')+
+  geom_line(data = avgtemp, aes(time, thermoclineDep, col = 'thermocline depth'), linetype = 'dashed', col = 'brown') +
+  geom_line(data = df.ice, aes(time, ice_h * (-1), col = 'ice thickness'), linetype = 'solid', col = 'darkblue') +
+  scale_y_reverse()
+

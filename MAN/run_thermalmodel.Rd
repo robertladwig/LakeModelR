@@ -46,7 +46,8 @@ run_thermalmodel(
   canpy = NULL,
   biomass = NULL,
   water.quality = FALSE,
-  wq = NULL
+  wq = NULL,
+  agents = NULL
 )
 }
 \arguments{
@@ -133,6 +134,8 @@ run_thermalmodel(
 \item{water.quality}{logical; if TRUE runs water quality (need a defined function 'water_quality_boundary_conditions'). Defaults to FALSE}
 
 \item{wq}{vector; initial vector of water quality variable profile, needs water.quality = TRUE. Defaults to NULL}
+
+\item{agents}{vector; initial vector of individual phytoplankton cells. Defaults to NULL}
 }
 \description{
 Returns a data frame containing model output in the form of vertical temperature

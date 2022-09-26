@@ -10,9 +10,6 @@ calc_dens <-function(wtemp){
 eddy_diffusivity <-function(rho, depth, g, rho_0, ice, area){
   buoy = rep(1, (nx)) * 7e-5
   buoy[1:(nx-1)] = abs(rho[2:nx] - rho[1:(nx-1)]) / (depth[2:nx] - depth[1:(nx-1)]) * g/rho_0
-  # for (i in seq(1, nx-1)){#range(0, nx - 1):
-  #   buoy[i] = ( abs(rho[i+1] - rho[i]) / (depth[i+1] - depth[i]) * g/rho_0 )
-  # }
   buoy[nx] = ( abs(rho[nx-1] - rho[nx]) / abs(depth[nx-1] - depth[nx]) *
                  g/rho_0 )
 
@@ -57,7 +54,7 @@ provide_meteorology <- function(meteofile, secchifile = NULL,
   daily_meteo$Ten_Meter_Elevation_Wind_Speed_meterPerSecond <-
     daily_meteo$Ten_Meter_Elevation_Wind_Speed_meterPerSecond * windfactor# wind speed multiplier
 
-  # kd = 0.4 # 0.2# 1.0 #0.2 # light attenuation coefficient
+
 
   ## light
   # Package ID: knb-lter-ntl.31.30 Cataloging System:https://pasta.edirepository.org.
@@ -169,7 +166,6 @@ calc_cc <- function(date, airt, relh = NULL, dewt = NULL, swr, lat, lon, elev, d
   #att = mean(at)
 
   Ho = at*Ho
-  #Ho = att*Ho
 
   dum5 = which(Ho<0.0)
   Ho[dum5] = 1
@@ -230,7 +226,6 @@ get_hypsography <- function(hypsofile, dx, nx){
   hyps <- read_csv(hypsofile,show_col_types = FALSE)
   area = approx(hyps$Depth_meter,hyps$Area_meterSquared,seq(1,nx*dx,
                                                             length.out= nx))$y
-  # area[which.min(area)] <- 1e-2
   area[nx] <- area[nx-1] -1
   depth = seq(1,nx*dx, length.out = nx)
   volume <- c(rev(diff(pracma::cumtrapz(area, depth))*(-1)),0)
@@ -239,7 +234,6 @@ get_hypsography <- function(hypsofile, dx, nx){
   for (p in 1:length(volume)){
     volume[p] <- pracma::trapz(depth[p:(p+1)],area[p:(p+1)])
   }
-  # volume <- c(volume, 1000)
   volume <- c(volume, volume[length(volume)])
   return(list(area, depth, volume))
 }
