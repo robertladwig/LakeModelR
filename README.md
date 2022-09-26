@@ -19,6 +19,10 @@ require(remotes)
 remotes::install_github("robertladwig/LakeModelR")
 ```
 
+Let us now model a lake's thermal dynamics, potential effects of a macrophyte bed on attenuation kinetic energy, and how dissolved oxygen would be created and consumed in an idealized ecosystem. 
+
+<a href="url"><img src="inst/extdata/conceptart.png" height="220" width="210" ></a>
+
 To test the model code run either example.R or
 
 ```{r gh-run, eval = FALSE}
