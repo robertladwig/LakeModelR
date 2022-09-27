@@ -208,6 +208,7 @@ run_thermalmodel <- function(u, # initial temperature profile
 
     kz = eddy_diffusivity(calc_dens(un), depth, 9.81, 998.2, ice, area) / 86400
 
+
     if (ice & daily_meteo["Tair",n] <= 0){
       kzn = kz
       absorp = 1 - 0.7
