@@ -231,7 +231,7 @@ ggplot(m.df.dissoxygen, aes((time), dx*as.numeric(as.character(variable)))) +
   scale_y_reverse()
 
 ## DEFINE INITIAL AMOUNT OF INDIVIDUALS AND LOCATION (DEPTH)
-nind = 1e2
+nind = 1e3
 agents = c(rep(10,nind))
 
 ## RUN THE LAKE MODEL
@@ -261,7 +261,7 @@ temp = res$temp
 individuals = res$agents
 avgtemp = res$average
 location = res$location
-
+diffusivity = res$diff
 
 ## POST-PROCESSING OF THE RESULTS
 time =  startingDate + seq(1, ncol(temp), 1) * dt
@@ -278,6 +278,11 @@ df.loc <- data.frame(cbind(time, t(location)) )
 colnames(df.loc) <- c("time", as.character(paste0(seq(1,nrow(location)))))
 m.df.loc <- reshape2::melt(df.loc, "time")
 m.df.loc$time <- time
+
+df.diff <- data.frame(cbind(time, t(diffusivity)) )
+colnames(df.diff) <- c("time", as.character(paste0(seq(1,nrow(diffusivity)))))
+m.df.diff <- reshape2::melt(df.diff, "time")
+m.df.diff$time <- time
 
 ## PLOTTING OF PHYTOPLANKTON INDIVIDUAL TIME SERIES
 ggplot(m.df.individuals, aes((time), as.numeric(value), col = variable)) +
@@ -297,6 +302,18 @@ ggplot(m.df.loc, aes((time), as.numeric(as.character(variable)))) +
   theme_minimal()  +xlab('Time') +
   ylab('Depth [m]') +
   labs(fill = 'Phytoplankton [inds]')+
+  geom_line(data = avgtemp, aes(time, thermoclineDep, col = 'thermocline depth'), linetype = 'dashed', col = 'brown') +
+  geom_line(data = df.ice, aes(time, ice_h * (-1), col = 'ice thickness'), linetype = 'solid', col = 'darkblue') +
+  scale_y_reverse()
+
+## HEATMAP OF EDDY DIFFUSIVITY
+ggplot(m.df.diff, aes((time), as.numeric(as.character(variable)))) +
+  geom_raster(aes(fill = as.numeric(value)), interpolate = TRUE) +
+  scale_fill_gradientn(limits = c(1e-7, 5e-5),
+                       colours = (RColorBrewer::brewer.pal(9, 'GnBu')))+
+  theme_minimal()  +xlab('Time') +
+  ylab('Depth [m]') +
+  labs(fill = 'Eddy diffusivity [m2/s]')+
   geom_line(data = avgtemp, aes(time, thermoclineDep, col = 'thermocline depth'), linetype = 'dashed', col = 'brown') +
   geom_line(data = df.ice, aes(time, ice_h * (-1), col = 'ice thickness'), linetype = 'solid', col = 'darkblue') +
   scale_y_reverse()
