@@ -159,12 +159,6 @@ run_thermalmodel <- function(u, # initial temperature profile
 
   cat(greet[whichgreet, 1])
 
-  if(is.null(agents)){
-    IBM_flag = FALSE
-  } else {
-    IBM_flag = TRUE
-  }
-
   if (is.null(canpy)){
     canpy = data.frame('dt' = c(0, endTime/dt), 'mean_canopy' = c(0,0))
   }
@@ -552,17 +546,8 @@ run_thermalmodel <- function(u, # initial temperature profile
 
     magents[, n] <- agents
 
-    if(IBM_flag){
-
-      suppressWarnings(suppressMessages(loc <- left_join(x = data.frame(numbers = seq(1,nx)*dx),
-                                                         y = data.frame(numbers = round(agents)) %>%
-                                                           group_by(numbers) %>%
-                                                           count()) %>%
-                                          replace_na(list('n' = 0))))
-
-      mloc[, n] <- loc$n
-
-    }
+    loc <- as.data.frame(table(factor(round(agents), levels = seq(1, nx) * dx)), responseName = 'n')
+    mloc[, n] <- loc$n
 
     stepi = stepi + 1
     setTxtProgressBar(pb,stepi)

@@ -297,7 +297,7 @@ ggplot(m.df.individuals, aes((time), as.numeric(value), col = variable)) +
 ## HEATMAP OF INDIVIDUAL PHYTOPLANKTONS
 ggplot(m.df.loc, aes((time), as.numeric(as.character(variable)))) +
   geom_raster(aes(fill = as.numeric(value)), interpolate = TRUE) +
-  scale_fill_gradientn(limits = c(0, 20),
+  scale_fill_gradientn(limits = c(0, 200),
                        colours = (RColorBrewer::brewer.pal(9, 'GnBu')))+
   theme_minimal()  +xlab('Time') +
   ylab('Depth [m]') +
