@@ -254,7 +254,8 @@ res <-  run_thermalmodel(u = u_ini,
                          daily_meteo = meteo,
                          Cd = 0.0013,
                          scheme = 'implicit',
-                         agents = agents)
+                         agents = agents,
+                         KEice = 1e-12)
 
 ## SAVE THE RESULTS
 temp = res$temp

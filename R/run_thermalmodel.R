@@ -408,6 +408,10 @@ run_thermalmodel <- function(u, # initial temperature profile
       }
       if (PE > KE){
         maxdep = dep-1
+
+        agents[which(agents <= maxdep)] = runif(length(agents[which(agents <= maxdep)]),
+                                                min(seq(1,nrow(um))*dx), maxdep)
+
         break
       } else if (dep>1 & PE < KE ){
         u[(dep-1):dep] = (u[(dep-1):dep] %*% volume[(dep-1):dep])/sum(volume[(dep-1):dep])
@@ -417,6 +421,7 @@ run_thermalmodel <- function(u, # initial temperature profile
         }
       }
       maxdep = dep
+
     }
 
     mix[n] <- KE/PE
