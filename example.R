@@ -255,7 +255,7 @@ res <-  run_thermalmodel(u = u_ini,
                          Cd = 0.0013,
                          scheme = 'implicit',
                          agents = agents,
-                         KEice = 1e-12)
+                         KEice = 0)
 
 ## SAVE THE RESULTS
 temp = res$temp
@@ -295,18 +295,6 @@ ggplot(m.df.individuals, aes((time), as.numeric(value), col = variable)) +
   labs(fill = 'Tracer [-]')+
   scale_y_reverse() + theme(legend.position = "none")
 
-## HEATMAP OF INDIVIDUAL PHYTOPLANKTONS
-ggplot(m.df.loc, aes((time), as.numeric(as.character(variable)))) +
-  geom_raster(aes(fill = as.numeric(value)), interpolate = TRUE) +
-  scale_fill_gradientn(limits = c(0, 200),
-                       colours = (RColorBrewer::brewer.pal(9, 'GnBu')))+
-  theme_minimal()  +xlab('Time') +
-  ylab('Depth [m]') +
-  labs(fill = 'Phytoplankton [inds]')+
-  geom_line(data = avgtemp, aes(time, thermoclineDep, col = 'thermocline depth'), linetype = 'dashed', col = 'brown') +
-  geom_line(data = df.ice, aes(time, ice_h * (-1), col = 'ice thickness'), linetype = 'solid', col = 'darkblue') +
-  scale_y_reverse()
-
 ## HEATMAP OF EDDY DIFFUSIVITY
 ggplot(m.df.diff, aes((time), as.numeric(as.character(variable)))) +
   geom_raster(aes(fill = as.numeric(value)), interpolate = TRUE) +
@@ -318,4 +306,18 @@ ggplot(m.df.diff, aes((time), as.numeric(as.character(variable)))) +
   geom_line(data = avgtemp, aes(time, thermoclineDep, col = 'thermocline depth'), linetype = 'dashed', col = 'brown') +
   geom_line(data = df.ice, aes(time, ice_h * (-1), col = 'ice thickness'), linetype = 'solid', col = 'darkblue') +
   scale_y_reverse()
+
+## HEATMAP OF INDIVIDUAL PHYTOPLANKTONS
+ggplot(m.df.loc, aes((time), as.numeric(as.character(variable)))) +
+  geom_raster(aes(fill = as.numeric(value)), interpolate = TRUE) +
+  scale_fill_gradientn(limits = c(0, 100),
+                       colours = (RColorBrewer::brewer.pal(9, 'GnBu')))+
+  theme_minimal()  +xlab('Time') +
+  ylab('Depth [m]') +
+  labs(fill = 'Phytoplankton [inds]')+
+  geom_line(data = avgtemp, aes(time, thermoclineDep, col = 'thermocline depth'), linetype = 'dashed', col = 'brown') +
+  geom_line(data = df.ice, aes(time, ice_h * (-1), col = 'ice thickness'), linetype = 'solid', col = 'darkblue') +
+  scale_y_reverse()
+
+
 

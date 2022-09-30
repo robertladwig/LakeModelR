@@ -55,7 +55,7 @@
 #' @param meltP double; calibration multiplier for ice melting. Defaults to 1.0
 #' @param dt_iceon_avg double; determines weighting of ice onset. Defaults to 0.8
 #' @param Hgeo double; geothermal heat flux. Defaults to 0.1 W/m2
-#' @param KEice double; wind attenuation for ice cover. Defaults to 1/1000
+#' @param KEice double; TKE multiplier due to ice cover. Defaults to 0
 #' @param Ice_min double; minimum ice thickness in m. Defaults to 0.1
 #' @param area vector; area over depth in m2
 #' @param depth vector; depths in m references from surface
@@ -125,7 +125,7 @@ run_thermalmodel <- function(u, # initial temperature profile
                              meltP = 1.0, # multiplier for melting energy
                              dt_iceon_avg = 0.8, # determines ice formation
                              Hgeo = 0.1, # geothermal heat flux
-                             KEice = 1/1000, # wind attenuation for ice cover
+                             KEice = 0, # wind attenuation for ice cover
                              Ice_min = 0.1, # minimum ice thickness
                              area, # area
                              depth, # depth
