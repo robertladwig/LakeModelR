@@ -41,8 +41,6 @@
 #' @param scheme character; numerical diffusion scheme, either 'explicit' or 'implicit'
 #' @param kd_light double; if NULL then the dataframe from daily_meteo is used, otherwise a DOUBLE value for light extinction (m-1)
 #' @param densThresh double; density difference threshold between neighboring layers for convective overturn. Defaults to 1E-3
-#' @param reflect double; light reflection. Defaults to 0.3
-#' @param infra double; infrared absorption. Defaults to 0.7
 #' @param albedo double; water albedo. Defaults to 0.1
 #' @param eps double; epsilon. Defaults to 0.97
 #' @param emissivity double; water emissivity. Defaults to 0.97
@@ -74,6 +72,16 @@
 #' @param water.quality logical; if TRUE runs water quality (need a defined function 'water_quality_boundary_conditions'). Defaults to FALSE
 #' @param wq vector; initial vector of water quality variable profile, needs water.quality = TRUE. Defaults to NULL
 #' @param agents vector; initial vector of individual phytoplankton cells. Defaults to NULL
+#' @param Hs double; snow thickness (m) at model start. Defaults to 0
+#' @param rho_snow double; snow density (kg/m3). Defaults to 250
+#' @param Hsi double; snow-ice thickness (m) at model starts. Default to 0
+#' @param rho_ice double; ice density (kg/m3). Defaults to 910
+#' @param rho_fw double; freshwater density (kg/m3). Defaults to 1000
+#' @param rho_new_snow double; new snow density (kg/m3). Defaults to 250
+#' @param rho_max_snow double; maximum snow density (kg/m3). Defaults to 450
+#' @param K_ice double; thermal conductivity of ice (W/K/m). Defaults to 2.1
+#' @param Cw double; volumetric heat capacity of water (J/K/m3). Defaults to 4.18E6
+#' @param L_ice double; latent heat of freezing (J/kg). Defaults to 333500
 #' @author Robert Ladwig
 #'
 #' @examples
@@ -106,13 +114,11 @@ run_thermalmodel <- function(u, # initial temperature profile
                              endTime, # ending time
                              ice = FALSE, # is ice exisitng?
                              Hi = 0, # ice thickness
-                             iceT = 6, # movign average for ice formation
+                             iceT = 6, # moving average for ice formation
                              supercooled = 0, # how many layers below 0 deg C?
                              scheme = 'implicit', # numerical diffusion scheme
                              kd_light = NULL, # light extinction
                              densThresh = 1e-3, # threshold for convective overturn
-                             reflect = 0.3, # light reflection
-                             infra = 0.7, # infrared absorption
                              albedo = 0.1, # water albedo
                              eps = 0.97, # epsilon
                              emissivity = 0.97, # water emissivity
@@ -143,7 +149,17 @@ run_thermalmodel <- function(u, # initial temperature profile
                              biomass = NULL, # biomass time series
                              water.quality = FALSE, # check if water quality simulation should be run
                              wq = NULL, # initial water quality profile
-                             agents = NULL # initial profile of phytoplankton individuals
+                             agents = NULL, # initial profile of phytoplankton individuals
+                             Hs = 0,
+                             rho_snow = 250,
+                             Hsi = 0,
+                             rho_ice = 910,
+                             rho_fw = 1000,
+                             rho_new_snow = 250,
+                             rho_max_snow = 450,
+                             K_ice = 2.1,
+                             Cw = 4.18E6,
+                             L_ice = 333500
 ){
 
   greet <- data.frame(greet = c('What a beautiful day to run a lake model.',
@@ -176,6 +192,9 @@ run_thermalmodel <- function(u, # initial temperature profile
   therm.z <- rep(NA, length =length(seq(startTime, endTime, dt)/dt))
   mix.z <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
   Him <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
+  Hsm <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
+  Hsim <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
+  Ticem <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
   magents <- matrix(NA, ncol  = length(seq(startTime, endTime, dt)/dt), nrow = length(agents))
   mloc <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
 
@@ -205,31 +224,32 @@ run_thermalmodel <- function(u, # initial temperature profile
 
     if (ice & daily_meteo["Tair",n] <= 0){
       kzn = kz
-      absorp = 1 - 0.7
-      infra = 1 - absorp
-      albedo = 0.7
+      albedo = 0.3
+      IceSnowAttCoeff <- exp(-K_ice * Hi) * exp(-K_snow * (rho_fw/rho_snow)* Hs)
     } else if (ice & daily_meteo["Tair",n] >= 0){
       kzn = kz
-      absorp = 1 - 0.3
-      infra = 1 - absorp
-      albedo = 0.7
+      albedo = 0.3
+      IceSnowAttCoeff <- exp(-K_ice * Hi) * exp(-K_snow * (rho_fw/rho_snow)* Hs)
     } else if (!ice) {
       kzn = kz
-      absorp = 1 - reflect# 0.3
-      infra = 1 - absorp
       albedo = 0.1
+      IceSnowAttCoeff <- 1
     }
     kzm[, n] <- kzn
 
 
     ## (1) Heat addition
     # surface heat flux
+    if (!ice){
     Q <- (
       longwave(cc = daily_meteo["CC",n], sigma = sigma, Tair = daily_meteo["Tair",n], ea = daily_meteo["ea",n], emissivity = emissivity, Jlw = daily_meteo["Jlw",n]) +
         backscattering(emissivity = emissivity, sigma = sigma, Twater = un[1], eps = eps) +
         latent(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n], RH = daily_meteo["RH",n], A = area, Cd = Cd) +
         sensible(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n], RH = daily_meteo["RH",n], A = area, Cd = Cd))
-    SW[n] <- absorp * daily_meteo["Jsw",n]
+    } else {
+      Q <- 0
+    }
+    SW[n] <- (1-albedo) * daily_meteo["Jsw",n]
     LW_in[n] <- longwave(cc = daily_meteo["CC",n], sigma = sigma, Tair = daily_meteo["Tair",n], ea = daily_meteo["ea",n], emissivity = emissivity, Jlw = daily_meteo["Jlw",n])
     LW_out[n] <- backscattering(emissivity = emissivity, sigma = sigma, Twater = un[1], eps = eps)
     LAT[n] <- latent(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n], RH = daily_meteo["RH",n], A = area, Cd = Cd)
@@ -242,7 +262,12 @@ run_thermalmodel <- function(u, # initial temperature profile
     P = macrobiomss(n)
 
     # heat addition over depth
-    H =  (1- albedo) * (daily_meteo["Jsw",n] * sw_factor) * exp(-(kd + km * P * Hmacrophytes) *depth)
+    if (ice){
+      H =  (1- albedo) * (daily_meteo["Jsw",n] * sw_factor) * exp(-(kd + km * P * Hmacrophytes) *depth)
+    } else {
+      H =  IceSnowAttCoeff * (daily_meteo["Jsw",n] * sw_factor) * exp(-(kd + km * P * Hmacrophytes) *depth)
+    }
+
 
     Hg <- (area-lead(area))/dx * Hgeo/(4181 * calc_dens(un))
     Hg[nx] <- (area[nx-1]-area[nx])/dx * Hgeo/(4181 * calc_dens(un[nx]))
@@ -471,56 +496,126 @@ run_thermalmodel <- function(u, # initial temperature profile
     x = (dt/86400) / icep
     iceT = iceT * (1 - x) + u[1] * x
 
-    Him[ n] <- Hi
+    # Him[ n] <- Hi
+    K_snow <- 2.22362 * (rho_snow/1000)^1.885
+    Tice = 0
 
-
-    if ((iceT <= 0) == TRUE & Hi < Ice_min & daily_meteo["Tair",n] <= 0){
+    if ((iceT <= 0) == TRUE & Hi < Ice_min & daily_meteo["Tair",n] <= 0 & ice == FALSE){
       supercooled <- which(u < 0)
-      initEnergy <- sum((0-u[supercooled])*area[supercooled] * dx * 4.18E6)
+      initEnergy <- sum((0-u[supercooled])*area[supercooled] * dx * Cw)
 
-      if (ice != TRUE) {
-        Hi <- Ice_min+(initEnergy/(910*333500))/max(area)
-      } else {
-        if (daily_meteo["Tair",n] > 0){
-          Tice <- 0 #
-          Hi = Hi -max(c(0, meltP * dt*((absorp*daily_meteo["Jsw",n])+(longwave(cc = daily_meteo["CC",n], sigma = sigma, Tair = daily_meteo["Tair",n], ea = daily_meteo["ea",n], emissivity = emissivity, Jlw = daily_meteo["Jlw",n]) +
-                                                                         backscattering(emissivity = emissivity, sigma = sigma, Twater = un[1], eps = eps) +
-                                                                         latent(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n],  RH = daily_meteo["RH",n], A = area, Cd = Cd) +
-                                                                         sensible(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n], RH = daily_meteo["RH",n], A = area, Cd = Cd)) )/(1000*333500)))
-        } else {
-          Tice <-  ((1/(10 * Hi)) * 0 + daily_meteo["Tair",n]) / (1 + (1/(10 * Hi)))
-          Hi <- max(Ice_min, sqrt(Hi**2 + 2 * 2.1/(910 * 333500)* (0 - Tice) * dt))
-        }
-      }
+      # if (ice != TRUE) {
+      Hi <- Ice_min+(initEnergy/(910*L_ice))/max(area)
+      # } else {
+      #   if (daily_meteo["Tair",n] > 0){
+      #     Tice <- 0 #
+      #     Hi = Hi -max(c(0, meltP * dt*(((1-albedo)*daily_meteo["Jsw",n])+(longwave(cc = daily_meteo["CC",n], sigma = sigma, Tair = daily_meteo["Tair",n], ea = daily_meteo["ea",n], emissivity = emissivity, Jlw = daily_meteo["Jlw",n]) +
+      #                                                                    backscattering(emissivity = emissivity, sigma = sigma, Twater = un[1], eps = eps) +
+      #                                                                    latent(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n],  RH = daily_meteo["RH",n], A = area, Cd = Cd) +
+      #                                                                    sensible(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n], RH = daily_meteo["RH",n], A = area, Cd = Cd)) )/(1000*L_ice)))
+      #   } else {
+      #     Tice <-  ((1/(10 * Hi)) * 0 + daily_meteo["Tair",n]) / (1 + (1/(10 * Hi)))
+      #     Hi <- max(Ice_min, sqrt(Hi**2 + 2 * 2.1/(910 * L_ice)* (0 - Tice) * dt))
+      #   }
+      # }
       ice = TRUE
       if (Hi >= 0){
         u[supercooled] = 0
         u[1] = 0
       }
-      Him[ n] <- Hi
+      # Him[ n] <- Hi
     } else if (ice == TRUE & Hi >= Ice_min) {
-      if (daily_meteo["Tair",n] > 0){
-        Tice <- 0 #
-        Hi = Hi -max(c(0, meltP * dt*((absorp*daily_meteo["Jsw",n])+(longwave(cc = daily_meteo["CC",n], sigma = sigma, Tair = daily_meteo["Tair",n], ea = daily_meteo["ea",n], emissivity = emissivity, Jlw = daily_meteo["Jlw",n]) +
-                                                                       backscattering(emissivity = emissivity, sigma = sigma, Twater = un[1], eps = eps) +
-                                                                       latent(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n],  RH = daily_meteo["RH",n], A = area, Cd = Cd) +
-                                                                       sensible(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n], RH = daily_meteo["RH",n], A = area, Cd = Cd)) )/(1000*333500)))
-      } else {
-        Tice <-  ((1/(10 * Hi)) * 0 +  daily_meteo["Tair",n]) / (1 + (1/(10 * Hi)))
-        Hi <- max(Ice_min, sqrt(Hi**2 + 2 * 2.1/(910 * 333500)* (0 - Tice) * dt))
-      }
-      u[supercooled] = 0
+
+      Q_surf <- (u[1] - 0) * Cw * dx
+      # u[supercooled] = 0
       u[1] = 0
-      Him[ n] <- Hi
+
+
+
+      if (daily_meteo["Tair",n] > 0){
+        Tice <- 0
+        dHsnew <- 0
+
+        if (Hs  > 0){
+          dHs <- -max(c(0, meltP * dt * (((1 - IceSnowAttCoeff) * daily_meteo["Jsw",n])+(longwave(cc = daily_meteo["CC",n], sigma = sigma, Tair = daily_meteo["Tair",n], ea = daily_meteo["ea",n], emissivity = emissivity, Jlw = daily_meteo["Jlw",n]) +
+                                                                                     backscattering(emissivity = emissivity, sigma = sigma, Twater = un[1], eps = eps) +
+                                                                                     latent(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n],  RH = daily_meteo["RH",n], A = area, Cd = Cd) +
+                                                                                     sensible(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n], RH = daily_meteo["RH",n], A = area, Cd = Cd)) )/(rho_fw*L_ice)))
+          if ((Hs + dHs) < 0) {
+            Hi_new <- Hi + (Hs + dHs) * (rho_fw/rho_ice)
+          } else {
+            Hi_new <- Hi
+          }
+        } else {
+          dHs <- 0
+
+          Hi_new = Hi -max(c(0, meltP * dt*(((1-IceSnowAttCoeff)*daily_meteo["Jsw",n])+(longwave(cc = daily_meteo["CC",n], sigma = sigma, Tair = daily_meteo["Tair",n], ea = daily_meteo["ea",n], emissivity = emissivity, Jlw = daily_meteo["Jlw",n]) +
+                                                                                      backscattering(emissivity = emissivity, sigma = sigma, Twater = un[1], eps = eps) +
+                                                                                      latent(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n],  RH = daily_meteo["RH",n], A = area, Cd = Cd) +
+                                                                                      sensible(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n], RH = daily_meteo["RH",n], A = area, Cd = Cd)) )/(rho_ice*L_ice)))
+          Hsi <- Hsi - max(c(0, meltP * dt *(((1-IceSnowAttCoeff)*daily_meteo["Jsw",n])+(longwave(cc = daily_meteo["CC",n], sigma = sigma, Tair = daily_meteo["Tair",n], ea = daily_meteo["ea",n], emissivity = emissivity, Jlw = daily_meteo["Jlw",n]) +
+                                                                                          backscattering(emissivity = emissivity, sigma = sigma, Twater = un[1], eps = eps) +
+                                                                                          latent(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n],  RH = daily_meteo["RH",n], A = area, Cd = Cd) +
+                                                                                          sensible(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n], RH = daily_meteo["RH",n], A = area, Cd = Cd)) )/(rho_ice*L_ice)))
+          if (Hsi <= 0){Hsi <- 0}
+        }
+
+      } else {
+
+        if (Hs > 0){
+          K_snow <- 2.22362 * (rho_snow/1000)^1.885
+          p <- (K_ice/K_snow) * (((rho_fw/rho_snow) * Hs ) / Hi)
+          dHsi <- max(c(0, Hi * (rho_ice/rho_fw -1) + Hs))
+          Hsi <- Hsi + dHsi
+        } else {
+          p = 1/(10 * Hi)
+          dHsi <- 0
+        }
+
+        Tice <-  (p * 0 +  daily_meteo["Tair",n]) / (1 + p)
+        Hi_new <- sqrt((Hi + dHsi)**2 + 2 * K_ice/(rho_ice * L_ice)* (0 - Tice) * dt)
+
+        dHsnew <- daily_meteo["PP",n] * 1/(1000 )
+        dHs <- dHsnew  - dHsi * (rho_ice/rho_fw)
+        dHsi <- 0
+
+
+      }
+
+      Hi <- Hi_new - (Q_surf/(rho_ice * L_ice))
+
+
+      Q_surf <- 0
+      Hs <- Hs + dHs
+
+      if (Hi < Hsi){
+        Hsi <- max(0, Hi)
+      }
+
+      if (Hs <= 0){
+        Hs <- 0
+        rho_snow <- rho_new_snow
+      } else {
+        rho_snow <- rho_snow * (Hs - dHsnew)/Hs + rho_new_snow * dHsnew/Hs
+      }
+
+      # Him[ n] <- Hi
     } else if (ice == TRUE & Hi < Ice_min){
       ice = FALSE
-      Him[ n] <- Hi
+      # Him[ n] <- Hi
     }
 
     if (ice == FALSE){
       Hi = 0
-      Him[n] = Hi
+      Hs = 0
+      Hsi = 0
+      # Him[n] = Hi
     }
+
+    Him[ n] <- Hi
+    Hsm[n] <- Hs
+    Hsim[n] <- Hsi
+    Ticem[n] <- Tice
 
     n2m[, n] <- n2
     um[, n] <- u
@@ -610,6 +705,9 @@ run_thermalmodel <- function(u, # initial temperature profile
              'mixing' = mix,
              'buoyancy' = n2m,
              'icethickness' = Him,
+             'snowthickness' = Hsm,
+             'snowicethickness' = Hsim,
+             'ice_temp' = Ticem,
              'iceflag' = ice,
              'icemovAvg' = iceT,
              'supercooled' = supercooled,
