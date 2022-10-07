@@ -82,6 +82,8 @@
 #' @param K_ice double; thermal conductivity of ice (W/K/m). Defaults to 2.1
 #' @param Cw double; volumetric heat capacity of water (J/K/m3). Defaults to 4.18E6
 #' @param L_ice double; latent heat of freezing (J/kg). Defaults to 333500
+#' @param kd_snow double; snow albedo. Default to 0.9
+#' @param kd_ice double; ice albedoa. Defaults to 0.7
 #' @author Robert Ladwig
 #'
 #' @examples
@@ -159,7 +161,9 @@ run_thermalmodel <- function(u, # initial temperature profile
                              rho_max_snow = 450,
                              K_ice = 2.1,
                              Cw = 4.18E6,
-                             L_ice = 333500
+                             L_ice = 333500,
+                             kd_snow = 0.9,
+                             kd_ice = 0.7
 ){
 
   greet <- data.frame(greet = c('What a beautiful day to run a lake model.',
@@ -225,11 +229,11 @@ run_thermalmodel <- function(u, # initial temperature profile
     if (ice & daily_meteo["Tair",n] <= 0){
       kzn = kz
       albedo = 0.3
-      IceSnowAttCoeff <- exp(-K_ice * Hi) * exp(-K_snow * (rho_fw/rho_snow)* Hs)
+      IceSnowAttCoeff <- exp(-kd_ice * Hi) * exp(-kd_snow * (rho_fw/rho_snow)* Hs)
     } else if (ice & daily_meteo["Tair",n] >= 0){
       kzn = kz
       albedo = 0.3
-      IceSnowAttCoeff <- exp(-K_ice * Hi) * exp(-K_snow * (rho_fw/rho_snow)* Hs)
+      IceSnowAttCoeff <- exp(-kd_ice * Hi) * exp(-kd_snow * (rho_fw/rho_snow)* Hs)
     } else if (!ice) {
       kzn = kz
       albedo = 0.1
@@ -575,7 +579,7 @@ run_thermalmodel <- function(u, # initial temperature profile
         Tice <-  (p * 0 +  daily_meteo["Tair",n]) / (1 + p)
         Hi_new <- sqrt((Hi + dHsi)**2 + 2 * K_ice/(rho_ice * L_ice)* (0 - Tice) * dt)
 
-        dHsnew <- daily_meteo["PP",n] * 1/(1000 )
+        dHsnew <- daily_meteo["PP",n] * 1/(1000 * 86400) * dt
         dHs <- dHsnew  - dHsi * (rho_ice/rho_fw)
         dHsi <- 0
 

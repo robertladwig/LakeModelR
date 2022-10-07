@@ -55,7 +55,9 @@ run_thermalmodel(
   rho_max_snow = 450,
   K_ice = 2.1,
   Cw = 4180000,
-  L_ice = 333500
+  L_ice = 333500,
+  kd_snow = 0.9,
+  kd_ice = 0.7
 )
 }
 \arguments{
@@ -160,6 +162,10 @@ run_thermalmodel(
 \item{Cw}{double; volumetric heat capacity of water (J/K/m3). Defaults to 4.18E6}
 
 \item{L_ice}{double; latent heat of freezing (J/kg). Defaults to 333500}
+
+\item{kd_snow}{double; snow albedo. Default to 0.9}
+
+\item{kd_ice}{double; ice albedoa. Defaults to 0.7}
 }
 \description{
 Returns a data frame containing model output in the form of vertical temperature
