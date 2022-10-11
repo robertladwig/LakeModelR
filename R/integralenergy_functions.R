@@ -55,7 +55,6 @@ provide_meteorology <- function(meteofile, secchifile = NULL,
     daily_meteo$Ten_Meter_Elevation_Wind_Speed_meterPerSecond * windfactor# wind speed multiplier
 
 
-
   ## light
   # Package ID: knb-lter-ntl.31.30 Cataloging System:https://pasta.edirepository.org.
   # Data set title: North Temperate Lakes LTER: Secchi Disk Depth; Other Auxiliary Base Crew Sample Data 1981 - current.
@@ -746,7 +745,7 @@ get_interp_drivers <- function(meteo_all, total_runtime, hydrodynamic_timestep =
   options(warn = -1)
 
   times = seq(1, 1 + total_runtime*hydrodynamic_timestep, dt)
-  meteo = matrix(NA, nrow = 9, ncol = length(times))
+  meteo = matrix(NA, nrow = 10, ncol = length(times))
   if(method == "interp"){
     meteo[1,] = approx(x = meteo_all[[1]]$dt,
                        y = meteo_all[[1]]$Shortwave_Radiation_Downwelling_wattPerMeterSquared,
@@ -784,6 +783,10 @@ get_interp_drivers <- function(meteo_all, total_runtime, hydrodynamic_timestep =
                        y = meteo_all[[1]]$Relative_Humidity_percent,
                        xout = times,
                        method = "linear", rule = 2)$y # 9 = RH
+    meteo[10,] = approx(x = meteo_all[[1]]$dt,
+                       y = meteo_all[[1]]$Precipitation_millimeterPerDay,
+                       xout = times,
+                       method = "linear", rule = 2)$y # 9 = RH
   }
   if(method == "integrate"){
     meteo_all[[1]]$dt = as.numeric(meteo_all[[1]]$dt)
@@ -799,7 +802,7 @@ get_interp_drivers <- function(meteo_all, total_runtime, hydrodynamic_timestep =
       arrange(dt, add_group) %>%
       dplyr::filter(dt <= max(times))
     # linearly interpolate to present dt's so missing values are filled
-    cols_interp_met = c("Shortwave_Radiation_Downwelling_wattPerMeterSquared", "Longwave_Radiation_Downwelling_wattPerMeterSquared", "Air_Temperature_celsius", "ea", "Ten_Meter_Elevation_Wind_Speed_meterPerSecond", "Cloud_Cover", "Surface_Level_Barometric_Pressure_pascal", "Relative_Humidity_percent")
+    cols_interp_met = c("Shortwave_Radiation_Downwelling_wattPerMeterSquared", "Longwave_Radiation_Downwelling_wattPerMeterSquared", "Air_Temperature_celsius", "ea", "Ten_Meter_Elevation_Wind_Speed_meterPerSecond", "Cloud_Cover", "Surface_Level_Barometric_Pressure_pascal", "Relative_Humidity_percent", "Precipitation_millimeterPerDay")
     for(i in 1:length(cols_interp_met)){
       comb[, cols_interp_met[i]] = approx(comb$dt, comb[, cols_interp_met[i]], comb$dt, method="linear", rule=2)$y
     }
@@ -820,14 +823,14 @@ get_interp_drivers <- function(meteo_all, total_runtime, hydrodynamic_timestep =
       group_by(group) %>%
       summarise(across(all_of(c(cols_interp_met, "kd")), ~ integrate_agg_fun(dt, ., int_method)))
     # format into matrix to be returned
-    cols_interp_ordered = c("Shortwave_Radiation_Downwelling_wattPerMeterSquared", "Longwave_Radiation_Downwelling_wattPerMeterSquared", "Air_Temperature_celsius", "ea", "Ten_Meter_Elevation_Wind_Speed_meterPerSecond", "Cloud_Cover", "Surface_Level_Barometric_Pressure_pascal", "kd", "Relative_Humidity_percent")
+    cols_interp_ordered = c("Shortwave_Radiation_Downwelling_wattPerMeterSquared", "Longwave_Radiation_Downwelling_wattPerMeterSquared", "Air_Temperature_celsius", "ea", "Ten_Meter_Elevation_Wind_Speed_meterPerSecond", "Cloud_Cover", "Surface_Level_Barometric_Pressure_pascal", "kd", "Relative_Humidity_percent", "Precipitation_millimeterPerDay")
     meteo = integral %>%
       select(cols_interp_ordered) %>%
       as.matrix() %>%
       t()
   }
 
-  rownames(meteo) = c("Jsw", "Jlw", "Tair", "ea", "Uw", "CC", "Pa", "kd", "RH")
+  rownames(meteo) = c("Jsw", "Jlw", "Tair", "ea", "Uw", "CC", "Pa", "kd", "RH", 'PP')
 
   options(warn = oldw)
   return(meteo)

@@ -15,8 +15,6 @@ run_thermalmodel(
   scheme = "implicit",
   kd_light = NULL,
   densThresh = 0.001,
-  reflect = 0.3,
-  infra = 0.7,
   albedo = 0.1,
   eps = 0.97,
   emissivity = 0.97,
@@ -47,7 +45,19 @@ run_thermalmodel(
   biomass = NULL,
   water.quality = FALSE,
   wq = NULL,
-  agents = NULL
+  agents = NULL,
+  Hs = 0,
+  rho_snow = 250,
+  Hsi = 0,
+  rho_ice = 910,
+  rho_fw = 1000,
+  rho_new_snow = 250,
+  rho_max_snow = 450,
+  K_ice = 2.1,
+  Cw = 4180000,
+  L_ice = 333500,
+  kd_snow = 0.9,
+  kd_ice = 0.7
 )
 }
 \arguments{
@@ -70,10 +80,6 @@ run_thermalmodel(
 \item{kd_light}{double; if NULL then the dataframe from daily_meteo is used, otherwise a DOUBLE value for light extinction (m-1)}
 
 \item{densThresh}{double; density difference threshold between neighboring layers for convective overturn. Defaults to 1E-3}
-
-\item{reflect}{double; light reflection. Defaults to 0.3}
-
-\item{infra}{double; infrared absorption. Defaults to 0.7}
 
 \item{albedo}{double; water albedo. Defaults to 0.1}
 
@@ -136,6 +142,30 @@ run_thermalmodel(
 \item{wq}{vector; initial vector of water quality variable profile, needs water.quality = TRUE. Defaults to NULL}
 
 \item{agents}{vector; initial vector of individual phytoplankton cells. Defaults to NULL}
+
+\item{Hs}{double; snow thickness (m) at model start. Defaults to 0}
+
+\item{rho_snow}{double; snow density (kg/m3). Defaults to 250}
+
+\item{Hsi}{double; snow-ice thickness (m) at model starts. Default to 0}
+
+\item{rho_ice}{double; ice density (kg/m3). Defaults to 910}
+
+\item{rho_fw}{double; freshwater density (kg/m3). Defaults to 1000}
+
+\item{rho_new_snow}{double; new snow density (kg/m3). Defaults to 250}
+
+\item{rho_max_snow}{double; maximum snow density (kg/m3). Defaults to 450}
+
+\item{K_ice}{double; thermal conductivity of ice (W/K/m). Defaults to 2.1}
+
+\item{Cw}{double; volumetric heat capacity of water (J/K/m3). Defaults to 4.18E6}
+
+\item{L_ice}{double; latent heat of freezing (J/kg). Defaults to 333500}
+
+\item{kd_snow}{double; snow albedo. Default to 0.9}
+
+\item{kd_ice}{double; ice albedoa. Defaults to 0.7}
 }
 \description{
 Returns a data frame containing model output in the form of vertical temperature
