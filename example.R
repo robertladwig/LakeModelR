@@ -36,7 +36,7 @@ meteo_all <- provide_meteorology(meteofile = system.file('extdata', 'meteorology
 ### TIME INFORMATION
 startingDate <- meteo_all[[1]]$datetime[1]
 startTime = 1
-endTime = 365 *24 * 3600 # seconds
+endTime = 1 * 365 *24 * 3600 # seconds
 total_runtime = endTime / 24 / 3600 # days
 
 # INTERPOLATE ATMOSPHERIC BOUNDARY CONDITIONS
@@ -61,7 +61,7 @@ res <-  run_thermalmodel(u = u_ini,
                           Hi = 0,
                           iceT = 6,
                           supercooled = 0,
-                          kd_light = 0.5,
+                          kd_light = 0.8,
                           sw_factor = 1.0,
                           zmax = zmax,
                           nx = nx,
@@ -78,7 +78,10 @@ res <-  run_thermalmodel(u = u_ini,
 temp = res$temp
 mixing = res$mixing
 ice = res$icethickness
+snow = res$snowthickness
+snowice = res$snowicethickness
 avgtemp = res$average
+temp_ice = res$ice_temp
 
 ## POST-PROCESSING OF THE RESULTS
 time =  startingDate + seq(1, ncol(temp), 1) * dt
@@ -103,7 +106,18 @@ m.df$time <- time
 
 ## CREATE DATAFRAME FOR ICE
 df.ice = data.frame('time' = time,
-                    'ice_h' = ice)
+                    'ice_h' = ice,
+                    'snow_h' = snow,
+                    'snowice_h' = snowice,
+                    'ice_temp' = temp_ice)
+
+## TIME SERIES PLOT OF SNOW AND ICE DYNAMICS
+ggplot(df.ice) +
+  geom_line(aes(time, ice_h, col = 'ice')) +
+  geom_line(aes(time, snow_h, col = 'snow')) +
+  geom_line(aes(time, snowice_h, col = 'snowice')) +
+  theme_minimal()  +xlab('Time') +
+  ylab('Thickness [m]')
 
 ## HEATMAP OF WATER TEMPERATURE WITH THERMOCLINE DEPTH AND ICE THICKNESS
 ggplot(m.df, aes((time), dx*as.numeric(as.character(variable)))) +
