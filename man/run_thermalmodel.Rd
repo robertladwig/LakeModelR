@@ -57,7 +57,8 @@ run_thermalmodel(
   Cw = 4180000,
   L_ice = 333500,
   kd_snow = 0.9,
-  kd_ice = 0.7
+  kd_ice = 0.7,
+  pgdl_mode = false
 )
 }
 \arguments{
@@ -166,6 +167,8 @@ run_thermalmodel(
 \item{kd_snow}{double; snow albedo. Default to 0.9}
 
 \item{kd_ice}{double; ice albedoa. Defaults to 0.7}
+
+\item{pgdl_model}{logical; get additional diagnostics. Defaults to false}
 }
 \description{
 Returns a data frame containing model output in the form of vertical temperature

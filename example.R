@@ -216,12 +216,26 @@ res <-  run_thermalmodel(u = u_ini,
 ice = res$icethickness
 avgtemp = res$average
 dissoxygen = res$water.quality
+avgdo = res$average_do
 
 ## POST-PROCESSING OF THE RESULTS
 time =  startingDate + seq(1, ncol(temp), 1) * dt
 avgtemp = as.data.frame(avgtemp)
 colnames(avgtemp) = c('time', 'epi', 'hyp', 'tot', 'stratFlag', 'thermoclineDep')
 avgtemp$time = time
+
+avgdo = as.data.frame(avgdo)
+colnames(avgdo) = c('time', 'epi', 'hyp', 'tot', 'stratFlag', 'thermoclineDep')
+avgdo$time = time
+
+## AVERAGE TEMPERATURES IN EPILIMNION AND HYPOLIMNION
+ggplot(avgdo) +
+  geom_line(aes(time, epi, col = 'epilimnion')) +
+  geom_line(aes(time, hyp, col = 'hypolimnion')) +
+  geom_line(aes(time, tot, col = 'total')) +
+  theme_minimal() + xlab('Time') +
+  ylab('DO [g-/3]') +
+  labs(col = 'Volumes')
 
 df.dissoxygen <- data.frame(cbind(time, t(dissoxygen)) )
 colnames(df.dissoxygen) <- c("time", as.character(paste0(seq(1,nrow(dissoxygen)))))

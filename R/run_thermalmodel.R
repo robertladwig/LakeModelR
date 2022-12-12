@@ -84,6 +84,7 @@
 #' @param L_ice double; latent heat of freezing (J/kg). Defaults to 333500
 #' @param kd_snow double; snow albedo. Default to 0.9
 #' @param kd_ice double; ice albedoa. Defaults to 0.7
+#' @param pgdl_model logical; get additional diagnostics. Defaults to FALSE
 #' @author Robert Ladwig
 #'
 #' @examples
@@ -163,7 +164,8 @@ run_thermalmodel <- function(u, # initial temperature profile
                              Cw = 4.18E6,
                              L_ice = 333500,
                              kd_snow = 0.9,
-                             kd_ice = 0.7
+                             kd_ice = 0.7,
+                             pgdl_mode = FALSE
 ){
 
   greet <- data.frame(greet = c('What a beautiful day to run a lake model.',
@@ -202,6 +204,17 @@ run_thermalmodel <- function(u, # initial temperature profile
   magents <- matrix(NA, ncol  = length(seq(startTime, endTime, dt)/dt), nrow = length(agents))
   mloc <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
 
+  if (pgdl_mode){
+    um_initial <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
+    um_heat <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
+    um_diff <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
+    um_mix <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
+    um_conv <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
+    um_ice <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
+    n2_pgdl <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = nx)
+    meteo_pgdl <- matrix(NA, ncol = length(seq(startTime, endTime, dt)/dt), nrow = 9)
+  }
+
   SW <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
   LW_in <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
   LW_out <- rep(NA, length = length(seq(startTime, endTime, dt)/dt))
@@ -223,8 +236,16 @@ run_thermalmodel <- function(u, # initial temperature profile
 
     un = u # prior temperature values
 
-    kz = eddy_diffusivity(calc_dens(un), depth, 9.81, 998.2, ice, area) / 86400
-
+    kz = eddy_diffusivity(calc_dens(un), depth, 9.81,
+                          mean(calc_dens(un)), ice, area) / 86400
+    if (pgdl_mode){
+      rho <- calc_dens(un)
+      buoy = rep(1, (nx)) * 7e-5
+      buoy[1:(nx-1)] = abs(rho[2:nx] - rho[1:(nx-1)]) / (depth[2:nx] - depth[1:(nx-1)]) * g/mean(rho)
+      buoy[nx] = ( abs(rho[nx-1] - rho[nx]) / abs(depth[nx-1] - depth[nx]) *
+                     g/mean(rho) )
+      n2_pgdl[, n] = buoy
+    }
 
     if (ice & daily_meteo["Tair",n] <= 0){
       kzn = kz
@@ -275,6 +296,34 @@ run_thermalmodel <- function(u, # initial temperature profile
 
     Hg <- (area-lead(area))/dx * Hgeo/(4181 * calc_dens(un))
     Hg[nx] <- (area[nx-1]-area[nx])/dx * Hgeo/(4181 * calc_dens(un[nx]))
+
+
+    if (pgdl_mode){
+      proxy_u <- un
+
+      um_initial[, n] <- proxy_u
+      # surface layer
+      proxy_u[1] = un[1] +
+        (Q * area[1]/(dx)*1/(4184 * calc_dens(un[1]) ) +
+           abs(H[1+1]-H[1]) * area[1]/(dx) * 1/(4184 * calc_dens(un[1]) ) +
+           Hg[1]) * dt/area[1]
+
+
+      # all other layers in between
+      for (i in 2:(nx-1)){
+        proxy_u[i] = un[i] +
+          (abs(H[i+1]-H[i]) * area[i]/(dx) * 1/(4184 * calc_dens(un[i]) ) +
+             Hg[i])* dt/area[i]
+
+      }
+
+      # bottom layer
+      proxy_u[nx] = un[nx] +
+        (abs(H[nx]-H[nx-1]) * area[nx]/(area[nx]*dx) * 1/(4181 * calc_dens(un[nx])) +
+           Hg[nx]/area[nx]) * dt
+
+      um_heat[, n] <- proxy_u
+    }
 
     # add heat to all layers
     ## (2) DIFFUSION
@@ -355,6 +404,10 @@ run_thermalmodel <- function(u, # initial temperature profile
       u[nx] = un[nx] +
         abs(H[nx]-H[nx-1]) * area[nx]/(area[nx]*dx) * 1/(4181 * calc_dens(un[nx]) +
                                                            Hg[nx]/area[nx]) * dt
+    }
+
+    if (pgdl_mode){
+      um_diff[, n] <- u
     }
 
     if (water.quality){
@@ -456,6 +509,10 @@ run_thermalmodel <- function(u, # initial temperature profile
     mix[n] <- KE/PE
     therm.z[n] <- maxdep
 
+    if (pgdl_mode){
+      um_mix[, n] <- u
+    }
+
 
     ## (4) DENSITY INSTABILITIES
     # convective overturn: Convective mixing is induced by an unstable density
@@ -489,7 +546,9 @@ run_thermalmodel <- function(u, # initial temperature profile
     n2 <- 9.81/mean(calc_dens(u)) * (lead(dens_u_n2) - dens_u_n2)/dx
     max.n2 <- ifelse(max(n2, na.rm = T) > 1E-4, which.max(n2) * dx, dx * nx)
     mix.z[n] <- max.n2
-
+    if (pgdl_mode){
+      um_conv[, n] <- u
+    }
 
 
     ## (5) ICE FORMATION
@@ -628,6 +687,21 @@ run_thermalmodel <- function(u, # initial temperature profile
       wqm[, n] <- wq
     }
 
+    if (pgdl_mode){
+      um_ice[, n] <- u
+
+      meteo_pgdl[1, n] <-  daily_meteo["Tair",n]
+      meteo_pgdl[2, n] <-   longwave(cc = daily_meteo["CC",n], sigma = sigma, Tair = daily_meteo["Tair",n], ea = daily_meteo["ea",n], emissivity = emissivity, Jlw = daily_meteo["Jlw",n]) -
+        backscattering(emissivity = emissivity, sigma = sigma, Twater = un[1], eps = eps)
+      meteo_pgdl[3, n] <-   latent(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n],  RH = daily_meteo["RH",n], A = area, Cd = Cd)
+      meteo_pgdl[4, n] <-   sensible(Tair = daily_meteo["Tair",n], Twater = un[1], Uw = daily_meteo["Uw",n], p2 = p2, pa = daily_meteo["Pa",n], ea=daily_meteo["ea",n],  RH = daily_meteo["RH",n], A = area, Cd = Cd)
+      meteo_pgdl[5, n] <-   daily_meteo["Jsw",n]
+      meteo_pgdl[6, n] <-   kd
+      meteo_pgdl[7, n] <-   shear
+      meteo_pgdl[8, n] <-   tau
+      meteo_pgdl[9, n] <-   max(area, na.rm = T)
+    }
+
 
     ## (6) Individual-based Modeling
     # Modeled using passive transport approach from Hellweger & Bucci (2009)
@@ -703,6 +777,47 @@ run_thermalmodel <- function(u, # initial temperature profile
                            'tot' = avg.tot.sim,
                            'stratFlag' = stratFlag,
                            'thermoclineDep' = bf.sim)
+
+  df.avg.sim.do = NULL
+  if (water.quality){
+    df.sim.do <- data.frame(cbind(seq(startTime,endTime,dt), t(wqm)) )
+    colnames(df.sim.do) <- c("datetime", as.character(paste0('do',seq(1,nrow(wqm))*dx)))
+    df.sim.do$datetime <-   seq(startTime, endTime, dt)#/24/3600
+
+
+    avg.epi.sim.do <- NULL
+    avg.hyp.sim.do <- NULL
+    avg.tot.sim.do <- NULL
+    for (j in 1:nrow(df.z.df.sim)){
+      d = df.sim.do[,-1]
+      if (is.na(df.z.df.sim$z[j])){
+        df.z.df.sim$z[j] = 1
+      }
+      avg.epi.sim.do <- append(avg.epi.sim.do,((as.numeric(d[j,1:df.z.df.sim$z[j]], na.rm = T) %*%
+                                            area[1:df.z.df.sim$z[j]] )/
+                                           sum(area[1:df.z.df.sim$z[j]])))
+      avg.hyp.sim.do <- append(avg.hyp.sim.do,((as.numeric(d[j,df.z.df.sim$z[j]:ncol(d)], na.rm = T)%*%
+                                            area[df.z.df.sim$z[j]:ncol(d)] )/
+                                           sum(area[df.z.df.sim$z[j]:ncol(d)])))
+      avg.tot.sim.do <- append(avg.tot.sim.do,((as.numeric(d[j,1:ncol(d)], na.rm = T)%*%
+                                            area[1:ncol(d)] )/
+                                           sum(area[1:ncol(d)])))
+    }
+
+    stratFlag = rep(NA, length = ncol(um))
+    for (v in 1:length(stratFlag)){
+      stratFlag[v] = ifelse((calc_dens(um[nx,v]) - calc_dens(um[1,v])) >= 0.1 &
+                              mean(um[,v]) >= 4, 1, 0)
+    }
+
+
+    df.avg.sim.do <- data.frame('time' = df.sim$datetime,
+                             'epi' = avg.epi.sim.do,
+                             'hyp' = avg.hyp.sim.do,
+                             'tot' = avg.tot.sim.do,
+                             'stratFlag' = stratFlag,
+                             'thermoclineDep' = bf.sim)
+  }
   cat(greet[whichgreet, 2])
   dat = list('temp'  = um,
              'diff' = kzm,
@@ -725,8 +840,44 @@ run_thermalmodel <- function(u, # initial temperature profile
              'LAT' = LAT,
              'SEN' = SEN,
              'water.quality' = wqm,
+             'average_do' = df.avg.sim.do,
              'agents' = magents,
              'location' = mloc)
+
+  if (pgdl_mode){
+    dat = list('temp'  = um,
+               'diff' = kzm,
+               'mixing' = mix,
+               'buoyancy' = n2m,
+               'icethickness' = Him,
+               'snowthickness' = Hsm,
+               'snowicethickness' = Hsim,
+               'ice_temp' = Ticem,
+               'iceflag' = ice,
+               'icemovAvg' = iceT,
+               'supercooled' = supercooled,
+               'mixingdepth' = mix.z,
+               'thermoclinedepth' = therm.z,
+               'endtime' = endTime,
+               'average' = df.avg.sim,
+               'SW' = SW,
+               'LW_in' = LW_in,
+               'LW_out' = LW_out,
+               'LAT' = LAT,
+               'SEN' = SEN,
+               'water.quality' = wqm,
+               'average_do' = df.avg.sim.do,
+               'agents' = magents,
+               'location' = mloc,
+               'temp_initial' = um_initial,
+               'temp_heat' = um_heat,
+               'temp_diff' = um_diff,
+               'temp_mix' = um_mix,
+               'temp_conv' = um_conv,
+               'temp_ice' = um_ice,
+               'meteo_input' = meteo_pgdl,
+               'buoyancy_pgdl' = n2_pgdl)
+  }
 
   return(dat)
 
